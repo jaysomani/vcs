@@ -20,13 +20,13 @@ class GitHubTest extends Base
     public function setUp(): void
     {
         $this->vcsAdapter = new GitHub(new Cache(new None()));
-        $privateKey = System::getEnv('PRIVATE_KEY') ?? '';
-        $githubAppId = System::getEnv('APP_IDENTIFIER') ?? '';
-        $installationId = System::getEnv('INSTALLATION_ID') ?? '';
-        $this->vcsAdapter->initializeVariables($installationId, $privateKey, $githubAppId);
+        $privateKey = System::getEnv('TESTS_GITHUB_PRIVATE_KEY') ?? '';
+        $appId = System::getEnv('TESTS_GITHUB_APP_IDENTIFIER') ?? '';
+        $installationId = System::getEnv('TESTS_GITHUB_INSTALLATION_ID') ?? '';
+        $this->vcsAdapter->initializeVariables(installationId: $installationId, privateKey: $privateKey, appId: $appId, accessToken: '', refreshToken: '');
     }
 
-    public function testgetEvent(): void
+    public function testGetEvent(): void
     {
         $payload_push = '{
             "created": false,
