@@ -96,6 +96,7 @@ class GitHub extends Git
 
     /**
      * Search repositories for GitHub App
+     * @param string $installationId ID of the installation
      * @param string $owner Name of user or org
      * @param int $page page number
      * @param int $per_page number of results per page
@@ -104,24 +105,87 @@ class GitHub extends Git
      *
      * @throws Exception
      */
-    public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
+    public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array
     {
-        $url = '/search/repositories';
+        // Find whether installation has access to all (or) specific repositories
+        $url = '/app/installations/' . $installationId;
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->jwtToken"]);
+        $hasAccessToAllRepositories = ($response['body']['repository_selection'] ?? '') === 'all';
 
-        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
-            'q' => "{$search} user:{$owner} fork:true",
-            'page' => $page,
-            'per_page' => $per_page,
-            'sort' => 'updated'
-        ]);
+        // Installation has access to all repositories, use the search API which supports filtering.
+        if ($hasAccessToAllRepositories) {
+            $url = '/search/repositories';
 
-        if (!isset($response['body']['items'])) {
-            throw new Exception("Repositories list missing in the response.");
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
+                'q' => "{$search} user:{$owner} fork:true",
+                'page' => $page,
+                'per_page' => $per_page,
+                'sort' => 'updated'
+            ]);
+
+            if (!isset($response['body']['items'])) {
+                throw new Exception("Repositories list missing in the response.");
+            }
+
+            return [
+                'items' => $response['body']['items'],
+                'total' => $response['body']['total_count'],
+            ];
         }
 
+        // Installation has access to specific repositories, we need to perform client-side filtering.
+        $url = '/installation/repositories';
+        $repositories = [];
+
+        // When no search query is provided, delegate pagination to the GitHub API.
+        if (empty($search)) {
+            $repositories = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
+                'page' => $page,
+                'per_page' => $per_page,
+            ]);
+
+            if (!isset($repositories['body']['repositories'])) {
+                throw new Exception("Repositories list missing in the response.");
+            }
+
+            return [
+                'items' => $repositories['body']['repositories'],
+                'total' => $repositories['body']['total_count'],
+            ];
+        }
+
+        // When search query is provided, fetch all repositories accessible by the installation and filter them locally.
+        $currentPage = 1;
+        while (true) {
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
+                'page' => $currentPage,
+                'per_page' => 100, // Maximum allowed by GitHub API
+            ]);
+
+            if (!isset($response['body']['repositories'])) {
+                throw new Exception("Repositories list missing in the response.");
+            }
+
+            // Filter repositories to only include those that match the search query.
+            $filteredRepositories = array_filter($response['body']['repositories'], fn ($repo) => stripos($repo['name'], $search) !== false);
+
+            // Merge with result so far.
+            $repositories = array_merge($repositories, $filteredRepositories);
+
+            // If less than 100 repositories are returned, we have fetched all repositories.
+            if (\count($response['body']['repositories']) < 100) {
+                break;
+            }
+
+            // Increment page number to fetch next page.
+            $currentPage++;
+        }
+
+        $repositoriesInRequestedPage = \array_slice($repositories, ($page - 1) * $per_page, $per_page);
+
         return [
-            'items' => $response['body']['items'],
-            'total' => $response['body']['total_count'],
+            'items' => $repositoriesInRequestedPage,
+            'total' => \count($repositories),
         ];
     }
 

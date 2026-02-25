@@ -113,7 +113,7 @@ class Gitea extends Git
     // Stub methods to satisfy abstract class requirements
     // These will be implemented in follow-up PRs
 
-    public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
+    public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array
     {
         throw new Exception("Not implemented yet");
     }
