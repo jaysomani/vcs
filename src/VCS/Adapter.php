@@ -84,6 +84,7 @@ abstract class Adapter
 
     /**
      * Search repositories for GitHub App
+     * @param string $installationId ID of the installation
      * @param string $owner Name of user or org
      * @param int $page page number
      * @param int $per_page number of results per page
@@ -92,7 +93,7 @@ abstract class Adapter
      *
      * @throws Exception
      */
-    abstract public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array;
+    abstract public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array;
 
     /**
      * Get repository

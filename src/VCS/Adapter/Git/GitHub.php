@@ -96,6 +96,7 @@ class GitHub extends Git
 
     /**
      * Search repositories for GitHub App
+     * @param string $installationId ID of the installation
      * @param string $owner Name of user or org
      * @param int $page page number
      * @param int $per_page number of results per page
@@ -104,8 +105,35 @@ class GitHub extends Git
      *
      * @throws Exception
      */
-    public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
+    public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array
     {
+        // Find whether installation has access to all (or) specific repositories
+        $url = '/app/installations/' . $installationId;
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->jwtToken"]);
+        $hasAccessToAllRepositories = ($response['body']['repository_selection'] ?? '') === 'all';
+
+        // Installation has access to all repositories, use the search API which supports filtering.
+        if ($hasAccessToAllRepositories) {
+            $url = '/search/repositories';
+
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
+                'q' => "{$search} user:{$owner} fork:true",
+                'page' => $page,
+                'per_page' => $per_page,
+                'sort' => 'updated'
+            ]);
+
+            if (!isset($response['body']['items'])) {
+                throw new Exception("Repositories list missing in the response.");
+            }
+
+            return [
+                'items' => $response['body']['items'],
+                'total' => $response['body']['total_count'],
+            ];
+        }
+
+        // Installation has access to specific repositories, we need to perform client-side filtering.
         $url = '/installation/repositories';
         $repositories = [];
 
