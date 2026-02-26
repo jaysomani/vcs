@@ -55,36 +55,6 @@ class GiteaTest extends Base
             }
         }
     }
-
-    /**
-     * Helper method to create a file in a repository
-     */
-    private function createFile(string $owner, string $repo, string $filepath, string $content, string $message = 'Add file'): void
-    {
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000') ?? '';
-        $url = "{$giteaUrl}/api/v1/repos/{$owner}/{$repo}/contents/{$filepath}";
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: token ' . self::$accessToken,
-            'Content-Type: application/json'
-        ]);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-            'content' => base64_encode($content),
-            'message' => $message
-        ]));
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode >= 400) {
-            throw new \Exception("Failed to create file {$filepath}: HTTP {$httpCode} - {$response}");
-        }
-    }
-
     public function testCreateRepository(): void
     {
         $owner = self::$owner;
@@ -138,30 +108,8 @@ class GiteaTest extends Base
         $repositoryName = 'test-branch-with-slash-' . \uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
-        $this->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
-
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000') ?? '';
-        $url = "{$giteaUrl}/api/v1/repos/" . self::$owner . "/{$repositoryName}/branches";
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: token ' . self::$accessToken,
-            'Content-Type: application/json'
-        ]);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-            'new_branch_name' => 'feature/test-branch',
-            'old_branch_name' => 'main'
-        ]));
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode >= 400) {
-            throw new \Exception("Failed to create branch: HTTP {$httpCode} - {$response}");
-        }
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature/test-branch', 'main');
 
         $tree = $this->vcsAdapter->getRepositoryTree(self::$owner, $repositoryName, 'feature/test-branch');
 
@@ -240,9 +188,9 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
         // Create files in repo
-        $this->createFile(self::$owner, $repositoryName, 'README.md', '# Test Repo');
-        $this->createFile(self::$owner, $repositoryName, 'src/main.php', '<?php echo "hello";');
-        $this->createFile(self::$owner, $repositoryName, 'src/lib.php', '<?php // library');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test Repo');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'src/main.php', '<?php echo "hello";');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'src/lib.php', '<?php // library');
 
         // Test non-recursive (should only show root level)
         $tree = $this->vcsAdapter->getRepositoryTree(self::$owner, $repositoryName, 'main', false);
@@ -269,7 +217,7 @@ class GiteaTest extends Base
     {
         $repositoryName = 'test-get-repository-tree-invalid-' . \uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
-        $this->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
 
         $tree = $this->vcsAdapter->getRepositoryTree(self::$owner, $repositoryName, 'non-existing-branch', false);
 
@@ -285,7 +233,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
         $fileContent = '# Hello World';
-        $this->createFile(self::$owner, $repositoryName, 'README.md', $fileContent);
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', $fileContent);
 
         $result = $this->vcsAdapter->getRepositoryContent(self::$owner, $repositoryName, 'README.md');
 
@@ -305,7 +253,7 @@ class GiteaTest extends Base
         $repositoryName = 'test-get-repository-content-ref-' . \uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
-        $this->createFile(self::$owner, $repositoryName, 'test.txt', 'main branch content');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'test.txt', 'main branch content');
 
         $result = $this->vcsAdapter->getRepositoryContent(self::$owner, $repositoryName, 'test.txt', 'main');
 
@@ -319,7 +267,7 @@ class GiteaTest extends Base
     {
         $repositoryName = 'test-get-repository-content-not-found-' . \uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
-        $this->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
 
         $this->expectException(\Utopia\VCS\Exception\FileNotFound::class);
         $this->vcsAdapter->getRepositoryContent(self::$owner, $repositoryName, 'non-existing.txt');
@@ -331,9 +279,9 @@ class GiteaTest extends Base
         $repositoryName = 'test-list-repository-contents-' . \uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
-        $this->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
-        $this->createFile(self::$owner, $repositoryName, 'file1.txt', 'content1');
-        $this->createFile(self::$owner, $repositoryName, 'src/main.php', '<?php');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'file1.txt', 'content1');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'src/main.php', '<?php');
 
         // List root directory
         $contents = $this->vcsAdapter->listRepositoryContents(self::$owner, $repositoryName);
@@ -361,8 +309,8 @@ class GiteaTest extends Base
         $repositoryName = 'test-list-repository-contents-subdir-' . \uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
-        $this->createFile(self::$owner, $repositoryName, 'src/file1.php', '<?php');
-        $this->createFile(self::$owner, $repositoryName, 'src/file2.php', '<?php');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'src/file1.php', '<?php');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'src/file2.php', '<?php');
 
         $contents = $this->vcsAdapter->listRepositoryContents(self::$owner, $repositoryName, 'src');
 
@@ -380,7 +328,7 @@ class GiteaTest extends Base
     {
         $repositoryName = 'test-list-repository-contents-invalid-' . \uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
-        $this->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
 
         $contents = $this->vcsAdapter->listRepositoryContents(self::$owner, $repositoryName, 'non-existing-path');
 
@@ -485,9 +433,9 @@ class GiteaTest extends Base
         $repositoryName = 'test-list-repository-languages-' . \uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
-        $this->createFile(self::$owner, $repositoryName, 'main.php', '<?php echo "test";');
-        $this->createFile(self::$owner, $repositoryName, 'script.js', 'console.log("test");');
-        $this->createFile(self::$owner, $repositoryName, 'style.css', 'body { margin: 0; }');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'main.php', '<?php echo "test";');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'script.js', 'console.log("test");');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'style.css', 'body { margin: 0; }');
 
         sleep(2);
 
