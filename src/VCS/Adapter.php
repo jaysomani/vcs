@@ -98,6 +98,14 @@ abstract class Adapter
     abstract public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array;
 
     /**
+     * Get repository for the installation
+     *
+     * @param string $repositoryName
+     * @return array<mixed>
+     */
+    abstract public function getInstallationRepository(string $repositoryName): array;
+
+    /**
      * Get repository
      *
      * @return array<mixed>

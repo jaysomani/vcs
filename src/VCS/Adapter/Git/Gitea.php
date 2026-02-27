@@ -123,6 +123,11 @@ class Gitea extends Git
         throw new Exception("Not implemented yet");
     }
 
+    public function getInstallationRepository(string $repositoryName): array
+    {
+        throw new Exception("Not implemented yet");
+    }
+
     public function getRepository(string $owner, string $repositoryName): array
     {
         $url = "/repos/{$owner}/{$repositoryName}";
