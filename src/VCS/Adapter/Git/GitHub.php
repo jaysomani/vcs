@@ -189,6 +189,27 @@ class GitHub extends Git
         ];
     }
 
+    public function getInstallationRepository(string $repositoryName): array
+    {
+        $url = '/installation/repositories';
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
+            'page' => 1,
+            'per_page' => 100,
+        ]);
+
+        if (!isset($response['body']['repositories'])) {
+            throw new Exception("Repositories list missing in the response.");
+        }
+
+        foreach ($response['body']['repositories'] as $repo) {
+            if (\strtolower($repo['name']) === \strtolower($repositoryName)) {
+                return $repo;
+            }
+        }
+
+        throw new RepositoryNotFound("Repository not found.");
+    }
+
     /**
      * Get GitHub repository
      *
