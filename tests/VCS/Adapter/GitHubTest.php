@@ -175,7 +175,7 @@ class GitHubTest extends Base
 
     public function testGetInstallationRepository(): void
     {
-        $repositoryName = 'basic-js-crud';
+        $repositoryName = 'astro-starter';
         $repo = $this->vcsAdapter->getInstallationRepository($repositoryName);
         $this->assertIsArray($repo);
         $this->assertSame($repositoryName, $repo['name']);
