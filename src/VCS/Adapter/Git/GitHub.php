@@ -191,20 +191,34 @@ class GitHub extends Git
 
     public function getInstallationRepository(string $repositoryName): array
     {
+        $currentPage = 1;
+        $perPage = 100;
+        $totalRepositories = 0;
+        $maxRepositories = 1000;
         $url = '/installation/repositories';
-        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
-            'page' => 1,
-            'per_page' => 100,
-        ]);
 
-        if (!isset($response['body']['repositories'])) {
-            throw new Exception("Repositories list missing in the response.");
-        }
+        while ($totalRepositories < $maxRepositories) {
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
+                'page' => $currentPage,
+                'per_page' => $perPage,
+            ]);
 
-        foreach ($response['body']['repositories'] as $repo) {
-            if (\strtolower($repo['name']) === \strtolower($repositoryName)) {
-                return $repo;
+            if (!isset($response['body']['repositories'])) {
+                throw new Exception("Repositories list missing in the response.");
             }
+
+            foreach ($response['body']['repositories'] as $repo) {
+                if (\strtolower($repo['name']) === \strtolower($repositoryName)) {
+                    return $repo;
+                }
+            }
+
+            if (\count($response['body']['repositories']) < $perPage) {
+                break;
+            }
+
+            $currentPage++;
+            $totalRepositories += $perPage;
         }
 
         throw new RepositoryNotFound("Repository not found.");
