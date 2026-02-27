@@ -4,7 +4,6 @@ namespace Utopia\VCS\Adapter;
 
 use Utopia\VCS\Adapter;
 use Utopia\Cache\Cache;
-use Exception;
 
 abstract class Git extends Adapter
 {
@@ -35,20 +34,18 @@ abstract class Git extends Adapter
     {
         return self::TYPE_GIT;
     }
+
     /**
-    * Create a file in a repository
-    *
-    * @param string $owner Owner of the repository
-    * @param string $repositoryName Name of the repository
-    * @param string $filepath Path where file should be created
-    * @param string $content Content of the file
-    * @param string $message Commit message
-    * @return array<mixed> Response from API
-    */
-    public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file'): array
-    {
-        throw new Exception("Not implemented");
-    }
+     * Create a file in a repository
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $filepath Path where file should be created
+     * @param string $content Content of the file
+     * @param string $message Commit message
+     * @return array<mixed> Response from API
+     */
+    abstract public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file'): array;
 
     /**
      * Create a branch in a repository
@@ -59,8 +56,5 @@ abstract class Git extends Adapter
      * @param string $oldBranchName Name of the branch to branch from
      * @return array<mixed> Response from API
      */
-    public function createBranch(string $owner, string $repositoryName, string $newBranchName, string $oldBranchName): array
-    {
-        throw new Exception("Not implemented");
-    }
+    abstract public function createBranch(string $owner, string $repositoryName, string $newBranchName, string $oldBranchName): array;
 }

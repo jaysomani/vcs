@@ -95,6 +95,35 @@ class GitHub extends Git
     }
 
     /**
+     * Create a file in a repository
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $filepath Path where file should be created
+     * @param string $content Content of the file
+     * @param string $message Commit message
+     * @return array<mixed> Response from API
+     */
+    public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file'): array
+    {
+        throw new Exception("Not implemented");
+    }
+
+    /**
+     * Create a branch in a repository
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $newBranchName Name of the new branch
+     * @param string $oldBranchName Name of the branch to branch from
+     * @return array<mixed> Response from API
+     */
+    public function createBranch(string $owner, string $repositoryName, string $newBranchName, string $oldBranchName): array
+    {
+        throw new Exception("Not implemented");
+    }
+
+    /**
      * Search repositories for GitHub App
      * @param string $installationId ID of the installation
      * @param string $owner Name of user or org
