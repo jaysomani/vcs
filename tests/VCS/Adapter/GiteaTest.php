@@ -365,12 +365,91 @@ class GiteaTest extends Base
 
     public function testGetCommit(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-get-commit-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        // Create a file to generate a commit
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test Commit');
+
+        // Get the latest commit to get its SHA
+        $latestCommit = $this->vcsAdapter->getLatestCommit(self::$owner, $repositoryName, 'main');
+        $commitHash = $latestCommit['commitHash'];
+
+        // Now test getCommit with that SHA
+        $result = $this->vcsAdapter->getCommit(self::$owner, $repositoryName, $commitHash);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('commitHash', $result);
+        $this->assertArrayHasKey('commitMessage', $result);
+        $this->assertArrayHasKey('commitAuthor', $result);
+        $this->assertArrayHasKey('commitUrl', $result);
+        $this->assertArrayHasKey('commitAuthorAvatar', $result);
+        $this->assertArrayHasKey('commitAuthorUrl', $result);
+
+        $this->assertSame($commitHash, $result['commitHash']);
+        $this->assertNotEmpty($result['commitMessage']);
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
     public function testGetLatestCommit(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-get-latest-commit-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        // Create files to generate commits
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'test.txt', 'test content');
+
+        $result = $this->vcsAdapter->getLatestCommit(self::$owner, $repositoryName, 'main');
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('commitHash', $result);
+        $this->assertArrayHasKey('commitMessage', $result);
+        $this->assertArrayHasKey('commitAuthor', $result);
+        $this->assertArrayHasKey('commitUrl', $result);
+        $this->assertArrayHasKey('commitAuthorAvatar', $result);
+        $this->assertArrayHasKey('commitAuthorUrl', $result);
+
+        $this->assertNotEmpty($result['commitHash']);
+        $this->assertNotEmpty($result['commitAuthor']);
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+    }
+
+    public function testGetCommitWithInvalidSha(): void
+    {
+        $repositoryName = 'test-get-commit-invalid-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+
+        $this->expectException(\Exception::class);
+        $this->vcsAdapter->getCommit(self::$owner, $repositoryName, 'invalid-sha-12345');
+    }
+
+    public function testGetLatestCommitWithInvalidBranch(): void
+    {
+        $repositoryName = 'test-get-latest-commit-invalid-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+
+        $this->expectException(\Exception::class);
+        $this->vcsAdapter->getLatestCommit(self::$owner, $repositoryName, 'non-existing-branch');
+    }
+
+    public function testGetCommitVerifyMessageContent(): void
+    {
+        $repositoryName = 'test-commit-message-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        $customMessage = 'Custom commit message';
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test', $customMessage);
+
+        $latestCommit = $this->vcsAdapter->getLatestCommit(self::$owner, $repositoryName, 'main');
+
+        $this->assertStringContainsString($customMessage, $latestCommit['commitMessage']);
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
     public function testGetEvent(): void
