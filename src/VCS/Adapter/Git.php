@@ -58,16 +58,16 @@ abstract class Git extends Adapter
      */
     abstract public function createBranch(string $owner, string $repositoryName, string $newBranchName, string $oldBranchName): array;
 
-     /**
-     * Create a pull request
-     *
-     * @param  string  $owner  Owner of the repository
-     * @param  string  $repositoryName  Name of the repository
-     * @param  string  $title  PR title
-     * @param  string  $head  Source branch
-     * @param  string  $base  Target branch
-     * @param  string  $body  PR description (optional)
-     * @return array<mixed> Created PR details
-     */
+    /**
+    * Create a pull request
+    *
+    * @param  string  $owner  Owner of the repository
+    * @param  string  $repositoryName  Name of the repository
+    * @param  string  $title  PR title
+    * @param  string  $head  Source branch
+    * @param  string  $base  Target branch
+    * @param  string  $body  PR description (optional)
+    * @return array<mixed> Created PR details
+    */
     abstract public function createPullRequest(string $owner, string $repositoryName, string $title, string $head, string $base, string $body = ''): array;
 }

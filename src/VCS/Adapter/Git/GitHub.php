@@ -93,7 +93,7 @@ class GitHub extends Git
 
         return $response['body'] ?? [];
     }
-        /**
+    /**
      * Create a pull request
      *
      * @param  string  $owner  Owner of the repository

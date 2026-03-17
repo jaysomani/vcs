@@ -443,7 +443,7 @@ class GitHubTest extends Base
         $this->assertSame('https://avatars.githubusercontent.com/u/43381712?v=4', $commitDetails['commitAuthorAvatar']);
         $this->assertSame('https://github.com/vermakhushboo', $commitDetails['commitAuthorUrl']);
     }
-    
+
     public function test_create_file(): void
     {
         $owner = 'test-kh';
