@@ -504,6 +504,48 @@ class GiteaTest extends Base
         }
     }
 
+    public function testSearchRepositoriesPagination(): void
+    {
+        $repo1 = 'test-pagination-1-' . \uniqid();
+        $repo2 = 'test-pagination-2-' . \uniqid();
+
+        $this->vcsAdapter->createRepository(self::$owner, $repo1, false);
+        $this->vcsAdapter->createRepository(self::$owner, $repo2, false);
+
+        try {
+            // Test limit=1 only returns 1 repo
+            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 1, 'test-pagination');
+
+            $this->assertSame(1, count($result['items']));
+            $this->assertGreaterThanOrEqual(2, $result['total']);
+
+            // Test page 2
+            $result2 = $this->vcsAdapter->searchRepositories('', self::$owner, 2, 1, 'test-pagination');
+            $this->assertSame(1, count($result2['items']));
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo1);
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo2);
+        }
+    }
+
+    public function testSearchRepositoriesNoResults(): void
+    {
+        $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10, 'nonexistent-repo-xyz-' . \uniqid());
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result['items']);
+        $this->assertSame(0, $result['total']);
+    }
+
+    public function testSearchRepositoriesInvalidOwner(): void
+    {
+        $result = $this->vcsAdapter->searchRepositories('', 'nonexistent-owner-' . \uniqid(), 1, 10);
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result['items']);
+        $this->assertSame(0, $result['total']);
+    }
+
     public function testDeleteRepository(): void
     {
         $repositoryName = 'test-delete-repository-' . \uniqid();
@@ -532,12 +574,10 @@ class GiteaTest extends Base
 
     public function testGetOwnerName(): void
     {
-        // For Gitea, getOwnerName simply returns the installationId parameter
-        // since Gitea doesn't have GitHub App installation concept
-        $result = $this->vcsAdapter->getOwnerName(self::$owner);
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('not applicable for Gitea');
 
-        $this->assertIsString($result);
-        $this->assertSame(self::$owner, $result);
+        $this->vcsAdapter->getOwnerName('');
     }
 
     public function testGetPullRequestFromBranch(): void
@@ -561,12 +601,19 @@ class GiteaTest extends Base
 
             // Create additional branches
             $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-1', 'main');
-            sleep(1);
             $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-2', 'main');
-            sleep(1);
 
-            // Test listBranches
-            $branches = $this->vcsAdapter->listBranches(self::$owner, $repositoryName);
+            $branches = [];
+            $maxAttempts = 10;
+            for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
+                $branches = $this->vcsAdapter->listBranches(self::$owner, $repositoryName);
+
+                if (in_array('feature-1', $branches, true) && in_array('feature-2', $branches, true)) {
+                    break;
+                }
+
+                usleep(500000);
+            }
 
             $this->assertIsArray($branches);
             $this->assertNotEmpty($branches);

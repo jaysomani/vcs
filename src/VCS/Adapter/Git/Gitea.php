@@ -129,10 +129,14 @@ class Gitea extends Git
      */
     public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array
     {
-        $allRepos = [];
+        $filteredRepos = [];
         $currentPage = 1;
+        $maxPages = 50;
 
-        while (true) {
+        $neededForPage = $page * $per_page;
+        $maxToCollect = $neededForPage + $per_page;
+
+        while ($currentPage <= $maxPages) {
             $queryParams = [
                 'page' => $currentPage,
                 'limit' => 100,
@@ -155,8 +159,12 @@ class Gitea extends Git
 
             $responseBody = $response['body'] ?? [];
 
+            if (!is_array($responseBody)) {
+                throw new Exception('Unexpected response body: ' . json_encode($responseBody));
+            }
+
             if (!array_key_exists('data', $responseBody)) {
-                throw new Exception("Repositories list missing in the response.");
+                throw new Exception("Repositories list missing in response: " . json_encode($responseBody));
             }
 
             $repos = $responseBody['data'];
@@ -165,7 +173,16 @@ class Gitea extends Git
                 break;
             }
 
-            $allRepos = array_merge($allRepos, $repos);
+            foreach ($repos as $repo) {
+                $repoOwner = $repo['owner']['login'] ?? '';
+                if ($repoOwner === $owner) {
+                    $filteredRepos[] = $repo;
+
+                    if (count($filteredRepos) >= $maxToCollect) {
+                        break 2;
+                    }
+                }
+            }
 
             if (count($repos) < 100) {
                 break;
@@ -173,13 +190,6 @@ class Gitea extends Git
 
             $currentPage++;
         }
-
-        $filteredRepos = array_filter($allRepos, function ($repo) use ($owner) {
-            $repoOwner = $repo['owner']['login'] ?? '';
-            return $repoOwner === $owner;
-        });
-
-        $filteredRepos = array_values($filteredRepos);
 
         $total = count($filteredRepos);
         $offset = ($page - 1) * $per_page;
@@ -433,16 +443,9 @@ class Gitea extends Git
         throw new Exception("Not implemented yet");
     }
 
-    /**
-     * Get owner name
-     * @param string $installationId In Gitea context, this is the owner name itself
-     * @return string Owner name
-     */
     public function getOwnerName(string $installationId): string
     {
-        // Gitea doesn't have GitHub App installation concept
-        // Return the installationId as-is since it represents the owner
-        return $installationId;
+        throw new Exception("getOwnerName() is not applicable for Gitea");
     }
 
     public function getPullRequest(string $owner, string $repositoryName, int $pullRequestNumber): array
@@ -464,30 +467,49 @@ class Gitea extends Git
      */
     public function listBranches(string $owner, string $repositoryName): array
     {
-        $url = "/repos/{$owner}/{$repositoryName}/branches";
+        $allBranches = [];
+        $perPage = 50;
+        $maxPages = 100;
 
-        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+        for ($currentPage = 1; $currentPage <= $maxPages; $currentPage++) {
+            $url = "/repos/{$owner}/{$repositoryName}/branches?page={$currentPage}&limit={$perPage}";
 
-        $responseHeaders = $response['headers'] ?? [];
-        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
-        if ($responseHeadersStatusCode >= 400) {
-            return [];
-        }
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
 
-        $responseBody = $response['body'] ?? [];
+            $responseHeaders = $response['headers'] ?? [];
+            $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
 
-        if (!is_array($responseBody)) {
-            return [];
-        }
+            if ($responseHeadersStatusCode === 404) {
+                return [];
+            }
 
-        $names = [];
-        foreach ($responseBody as $branch) {
-            if (is_array($branch) && array_key_exists('name', $branch)) {
-                $names[] = $branch['name'] ?? '';
+            if ($responseHeadersStatusCode >= 400) {
+                if ($currentPage === 1) {
+                    throw new Exception("Failed to list branches: HTTP {$responseHeadersStatusCode}");
+                }
+                break;
+            }
+
+            $responseBody = $response['body'] ?? [];
+
+            if (!is_array($responseBody)) {
+                break;
+            }
+
+            $pageCount = 0;
+            foreach ($responseBody as $branch) {
+                if (is_array($branch) && array_key_exists('name', $branch)) {
+                    $allBranches[] = $branch['name'] ?? '';
+                    $pageCount++;
+                }
+            }
+
+            if ($pageCount < $perPage) {
+                break;
             }
         }
 
-        return $names;
+        return $allBranches;
     }
 
     /**
