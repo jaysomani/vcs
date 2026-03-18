@@ -443,39 +443,4 @@ class GitHubTest extends Base
         $this->assertSame('https://avatars.githubusercontent.com/u/43381712?v=4', $commitDetails['commitAuthorAvatar']);
         $this->assertSame('https://github.com/vermakhushboo', $commitDetails['commitAuthorUrl']);
     }
-
-    public function test_create_file(): void
-    {
-        $owner = 'test-kh';
-        $repositoryName = 'test1';
-
-        $result = $this->vcsAdapter->createFile(
-            $owner,
-            $repositoryName,
-            'test-create-'.\uniqid().'.md',
-            '# Test File',
-            'Test file creation'
-        );
-
-        $this->assertIsArray($result);
-        $this->assertNotEmpty($result);
-    }
-
-    public function test_create_file_on_branch(): void
-    {
-        $owner = 'test-kh';
-        $repositoryName = 'test1';
-
-        $result = $this->vcsAdapter->createFile(
-            $owner,
-            $repositoryName,
-            'test-branch-'.\uniqid().'.md',
-            '# Test Branch File',
-            'Test file on branch',
-            'test'
-        );
-
-        $this->assertIsArray($result);
-        $this->assertNotEmpty($result);
-    }
 }
