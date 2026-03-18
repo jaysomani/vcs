@@ -430,7 +430,7 @@ class GitHubTest extends Base
         $this->assertIsArray($commitDetails);
         $this->assertSame('https://avatars.githubusercontent.com/u/43381712?v=4', $commitDetails['commitAuthorAvatar']);
         $this->assertSame('https://github.com/vermakhushboo', $commitDetails['commitAuthorUrl']);
-        $this->assertSame('Khushboo Verma', $commitDetails['commitAuthor']);
+        $this->assertSame('appwritedemoapp[bot]', $commitDetails['commitAuthor']);
         $this->assertSame('Initial commit', $commitDetails['commitMessage']);
         $this->assertSame('https://github.com/test-kh/test1/commit/7ae65094d56edafc48596ffbb77950e741e56412', $commitDetails['commitUrl']);
         $this->assertSame('7ae65094d56edafc48596ffbb77950e741e56412', $commitDetails['commitHash']);
@@ -439,7 +439,7 @@ class GitHubTest extends Base
     public function testGetLatestCommit(): void
     {
         $commitDetails = $this->vcsAdapter->getLatestCommit('test-kh', 'test1', 'test');
-        $this->assertSame('Khushboo Verma', $commitDetails['commitAuthor']);
+        $this->assertSame('appwritedemoapp[bot]', $commitDetails['commitAuthor']);
         $this->assertSame('https://avatars.githubusercontent.com/u/43381712?v=4', $commitDetails['commitAuthorAvatar']);
         $this->assertSame('https://github.com/vermakhushboo', $commitDetails['commitAuthorUrl']);
     }

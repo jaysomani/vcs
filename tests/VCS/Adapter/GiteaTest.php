@@ -486,7 +486,6 @@ class GiteaTest extends Base
             $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
         }
 
-        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
     public function testGenerateCloneCommand(): void

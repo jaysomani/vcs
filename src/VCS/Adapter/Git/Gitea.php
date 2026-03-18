@@ -403,6 +403,12 @@ class Gitea extends Git
 
         $response = $this->call(self::METHOD_POST, $url, ['Authorization' => "token $this->accessToken"], ['body' => $comment]);
 
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to create comment: HTTP {$responseHeadersStatusCode}");
+        }
+
         $responseBody = $response['body'] ?? [];
 
         if (!array_key_exists('id', $responseBody)) {
@@ -428,6 +434,12 @@ class Gitea extends Git
         $url = "/repos/{$owner}/{$repositoryName}/issues/comments/{$commentId}";
 
         $response = $this->call(self::METHOD_PATCH, $url, ['Authorization' => "token $this->accessToken"], ['body' => $comment]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to update comment: HTTP {$responseHeadersStatusCode}");
+        }
 
         $responseBody = $response['body'] ?? [];
 
@@ -465,9 +477,11 @@ class Gitea extends Git
 
     public function getPullRequestFromBranch(string $owner, string $repositoryName, string $branch): array
     {
-        $url = "/repos/{$owner}/{$repositoryName}/pulls?state=open&sort=recentupdate";
+
+        $url = "/repos/{$owner}/{$repositoryName}/pulls?state=open&head=" . urlencode($branch);
 
         $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
@@ -476,19 +490,7 @@ class Gitea extends Git
 
         $responseBody = $response['body'] ?? [];
 
-        // Filter by head branch (source branch of the PR)
-        foreach ($responseBody as $pr) {
-            if (! is_array($pr) || ! isset($pr['head']['ref'])) {
-                continue;
-            }
-
-            $prHeadRef = $pr['head']['ref'];
-            if ($prHeadRef === $branch) {
-                return $pr;
-            }
-        }
-
-        return [];
+        return $responseBody[0] ?? [];
     }
 
     public function listBranches(string $owner, string $repositoryName): array
