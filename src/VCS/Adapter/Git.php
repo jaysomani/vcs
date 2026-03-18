@@ -45,7 +45,7 @@ abstract class Git extends Adapter
      * @param string $message Commit message
      * @return array<mixed> Response from API
      */
-    abstract public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file'): array;
+    abstract public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file', string $branch = ''): array;
 
     /**
      * Create a branch in a repository
@@ -57,4 +57,17 @@ abstract class Git extends Adapter
      * @return array<mixed> Response from API
      */
     abstract public function createBranch(string $owner, string $repositoryName, string $newBranchName, string $oldBranchName): array;
+
+    /**
+    * Create a pull request
+    *
+    * @param  string  $owner  Owner of the repository
+    * @param  string  $repositoryName  Name of the repository
+    * @param  string  $title  PR title
+    * @param  string  $head  Source branch
+    * @param  string  $base  Target branch
+    * @param  string  $body  PR description (optional)
+    * @return array<mixed> Created PR details
+    */
+    abstract public function createPullRequest(string $owner, string $repositoryName, string $title, string $head, string $base, string $body = ''): array;
 }

@@ -93,20 +93,61 @@ class GitHub extends Git
 
         return $response['body'] ?? [];
     }
+    /**
+     * Create a pull request
+     *
+     * @param  string  $owner  Owner of the repository
+     * @param  string  $repositoryName  Name of the repository
+     * @param  string  $title  PR title
+     * @param  string  $head  Source branch
+     * @param  string  $base  Target branch
+     * @param  string  $body  PR description (optional)
+     * @return array<mixed> Created PR details
+     */
+    public function createPullRequest(string $owner, string $repositoryName, string $title, string $head, string $base, string $body = ''): array
+    {
+        throw new Exception('Not implemented');
+    }
 
     /**
      * Create a file in a repository
      *
-     * @param string $owner Owner of the repository
-     * @param string $repositoryName Name of the repository
-     * @param string $filepath Path where file should be created
-     * @param string $content Content of the file
-     * @param string $message Commit message
+     * @param  string  $owner  Owner of the repository
+     * @param  string  $repositoryName  Name of the repository
+     * @param  string  $filepath  Path where file should be created
+     * @param  string  $content  Content of the file
+     * @param  string  $message  Commit message
+     * @param  string  $branch  Branch to create file on (optional)
      * @return array<mixed> Response from API
      */
-    public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file'): array
+    public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file', string $branch = ''): array
     {
-        throw new Exception("Not implemented");
+        $url = "/repos/{$owner}/{$repositoryName}/contents/{$filepath}";
+
+        $payload = [
+            'message' => $message,
+            'content' => base64_encode($content),
+        ];
+
+        // GitHub supports branch parameter
+        if (! empty($branch)) {
+            $payload['branch'] = $branch;
+        }
+
+        $response = $this->call(
+            self::METHOD_PUT,
+            $url,
+            ['Authorization' => "Bearer $this->accessToken"],
+            $payload
+        );
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return $response['body'] ?? [];
     }
 
     /**
