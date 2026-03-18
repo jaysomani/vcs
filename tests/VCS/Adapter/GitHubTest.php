@@ -344,6 +344,7 @@ class GitHubTest extends Base
 
     public function testGenerateCloneCommand(): void
     {
+        \exec('rm -rf /tmp/clone-branch');
         $gitCloneCommand = $this->vcsAdapter->generateCloneCommand('test-kh', 'test2', 'test', GitHub::CLONE_TYPE_BRANCH, '/tmp/clone-branch', '*');
         $this->assertNotEmpty($gitCloneCommand);
         $this->assertStringContainsString('sparse-checkout', $gitCloneCommand);
@@ -358,6 +359,7 @@ class GitHubTest extends Base
 
     public function testGenerateCloneCommandWithCommitHash(): void
     {
+        \exec('rm -rf /tmp/clone-commit');
         $gitCloneCommand = $this->vcsAdapter->generateCloneCommand('test-kh', 'test2', '4fb10447faea8a55c5cad7b5ebdfdbedca349fe4', GitHub::CLONE_TYPE_COMMIT, '/tmp/clone-commit', '*');
         $this->assertNotEmpty($gitCloneCommand);
         $this->assertStringContainsString('sparse-checkout', $gitCloneCommand);
@@ -372,6 +374,7 @@ class GitHubTest extends Base
 
     public function testGenerateCloneCommandWithTag(): void
     {
+        \exec('rm -rf /tmp/clone-tag /tmp/clone-tag2 /tmp/clone-tag3');
         $gitCloneCommand = $this->vcsAdapter->generateCloneCommand('test-kh', 'test2', '0.1.0', GitHub::CLONE_TYPE_TAG, '/tmp/clone-tag', '*');
         $this->assertNotEmpty($gitCloneCommand);
         $this->assertStringContainsString('sparse-checkout', $gitCloneCommand);
@@ -430,7 +433,7 @@ class GitHubTest extends Base
         $this->assertIsArray($commitDetails);
         $this->assertSame('https://avatars.githubusercontent.com/u/43381712?v=4', $commitDetails['commitAuthorAvatar']);
         $this->assertSame('https://github.com/vermakhushboo', $commitDetails['commitAuthorUrl']);
-        $this->assertSame('appwritedemoapp[bot]', $commitDetails['commitAuthor']);
+        $this->assertSame('Khushboo Verma', $commitDetails['commitAuthor']);
         $this->assertSame('Initial commit', $commitDetails['commitMessage']);
         $this->assertSame('https://github.com/test-kh/test1/commit/7ae65094d56edafc48596ffbb77950e741e56412', $commitDetails['commitUrl']);
         $this->assertSame('7ae65094d56edafc48596ffbb77950e741e56412', $commitDetails['commitHash']);
@@ -440,7 +443,7 @@ class GitHubTest extends Base
     {
         $commitDetails = $this->vcsAdapter->getLatestCommit('test-kh', 'test1', 'test');
         $this->assertSame('appwritedemoapp[bot]', $commitDetails['commitAuthor']);
-        $this->assertSame('https://avatars.githubusercontent.com/u/43381712?v=4', $commitDetails['commitAuthorAvatar']);
-        $this->assertSame('https://github.com/vermakhushboo', $commitDetails['commitAuthorUrl']);
+        $this->assertSame('https://avatars.githubusercontent.com/in/287220?v=4', $commitDetails['commitAuthorAvatar']);
+        $this->assertSame('https://github.com/apps/appwritedemoapp', $commitDetails['commitAuthorUrl']);
     }
 }
