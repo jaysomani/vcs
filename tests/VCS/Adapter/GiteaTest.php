@@ -658,15 +658,18 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(self::$owner, $repo2, false);
 
         try {
-            // Test limit=1 only returns 1 repo
             $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 1, 'test-pagination');
 
             $this->assertSame(1, count($result['items']));
             $this->assertGreaterThanOrEqual(2, $result['total']);
 
-            // Test page 2
             $result2 = $this->vcsAdapter->searchRepositories('', self::$owner, 2, 1, 'test-pagination');
             $this->assertSame(1, count($result2['items']));
+
+            $result20 = $this->vcsAdapter->searchRepositories('', self::$owner, 20, 1, 'test-pagination');
+            $this->assertIsArray($result20);
+            $this->assertEmpty($result20['items']);
+
         } finally {
             $this->vcsAdapter->deleteRepository(self::$owner, $repo1);
             $this->vcsAdapter->deleteRepository(self::$owner, $repo2);
@@ -723,6 +726,14 @@ class GiteaTest extends Base
         $this->expectExceptionMessage('not applicable for Gitea');
 
         $this->vcsAdapter->getOwnerName('');
+    }
+
+    public function testGetOwnerNameWithRandomInput(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('not applicable for Gitea');
+
+        $this->vcsAdapter->getOwnerName('random-gibberish-' . \uniqid());
     }
 
     public function testGetPullRequestFromBranch(): void
