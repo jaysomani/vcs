@@ -98,9 +98,106 @@ class GiteaTest extends Base
         $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
+    public function testCommentWorkflow(): void
+    {
+        $repositoryName = 'test-comment-workflow-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'comment-test', 'main');
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'test.txt', 'test', 'Add test file', 'comment-test');
+
+            $pr = $this->vcsAdapter->createPullRequest(
+                self::$owner,
+                $repositoryName,
+                'Comment Test PR',
+                'comment-test',
+                'main'
+            );
+
+            $prNumber = $pr['number'] ?? 0;
+            $this->assertGreaterThan(0, $prNumber);
+
+            $originalComment = 'This is a test comment';
+            $commentId = $this->vcsAdapter->createComment(self::$owner, $repositoryName, $prNumber, $originalComment);
+
+            $this->assertNotEmpty($commentId);
+            $this->assertIsString($commentId);
+
+            $retrievedComment = $this->vcsAdapter->getComment(self::$owner, $repositoryName, $commentId);
+            $this->assertSame($originalComment, $retrievedComment);
+
+            $updatedCommentText = 'This comment has been updated';
+            $updatedCommentId = $this->vcsAdapter->updateComment(self::$owner, $repositoryName, (int)$commentId, $updatedCommentText);
+
+            $this->assertSame($commentId, $updatedCommentId);
+
+            $finalComment = $this->vcsAdapter->getComment(self::$owner, $repositoryName, $commentId);
+            $this->assertSame($updatedCommentText, $finalComment);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
     public function testGetComment(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-get-comment-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'test-branch', 'main');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
+
+        // Create PR
+        $pr = $this->vcsAdapter->createPullRequest(
+            self::$owner,
+            $repositoryName,
+            'Test PR',
+            'test-branch',
+            'main'
+        );
+
+        $prNumber = $pr['number'] ?? 0;
+
+        // Create a comment
+        $commentId = $this->vcsAdapter->createComment(self::$owner, $repositoryName, $prNumber, 'Test comment');
+
+        // Test getComment
+        $result = $this->vcsAdapter->getComment(self::$owner, $repositoryName, $commentId);
+
+        $this->assertIsString($result);
+        $this->assertSame('Test comment', $result);
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+    }
+
+    public function testCreateCommentInvalidPR(): void
+    {
+        $repositoryName = 'test-comment-invalid-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+
+        try {
+            $this->expectException(\Exception::class);
+            $this->vcsAdapter->createComment(self::$owner, $repositoryName, 99999, 'Test comment');
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
+    public function testGetCommentInvalidId(): void
+    {
+        $repositoryName = 'test-get-comment-invalid-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+
+        $result = $this->vcsAdapter->getComment(self::$owner, $repositoryName, '99999999');
+
+        $this->assertIsString($result);
+        $this->assertSame('', $result);
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
     public function testGetRepositoryTreeWithSlashInBranchName(): void
@@ -340,7 +437,55 @@ class GiteaTest extends Base
 
     public function testGetPullRequest(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-get-pull-request-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-branch', 'main');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'feature content', 'Add feature', 'feature-branch');
+
+        $pr = $this->vcsAdapter->createPullRequest(
+            self::$owner,
+            $repositoryName,
+            'Test PR',
+            'feature-branch',
+            'main',
+            'Test PR description'
+        );
+
+        $prNumber = $pr['number'] ?? 0;
+        $this->assertGreaterThan(0, $prNumber);
+
+        // Now test getPullRequest
+        $result = $this->vcsAdapter->getPullRequest(self::$owner, $repositoryName, $prNumber);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('number', $result);
+        $this->assertArrayHasKey('title', $result);
+        $this->assertArrayHasKey('state', $result);
+        $this->assertArrayHasKey('head', $result);
+        $this->assertArrayHasKey('base', $result);
+
+        $this->assertSame($prNumber, $result['number']);
+        $this->assertSame('Test PR', $result['title']);
+        $this->assertSame('open', $result['state']);
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+    }
+
+    public function testGetPullRequestWithInvalidNumber(): void
+    {
+        $repositoryName = 'test-get-pull-request-invalid-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+
+        try {
+            $this->expectException(\Exception::class);
+            $this->vcsAdapter->getPullRequest(self::$owner, $repositoryName, 99999);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+
     }
 
     public function testGenerateCloneCommand(): void
@@ -594,7 +739,84 @@ class GiteaTest extends Base
     }
     public function testSearchRepositories(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        // Create multiple repositories
+        $repo1Name = 'test-search-repo1-' . \uniqid();
+        $repo2Name = 'test-search-repo2-' . \uniqid();
+        $repo3Name = 'other-repo-' . \uniqid();
+
+        $this->vcsAdapter->createRepository(self::$owner, $repo1Name, false);
+        $this->vcsAdapter->createRepository(self::$owner, $repo2Name, false);
+        $this->vcsAdapter->createRepository(self::$owner, $repo3Name, false);
+
+        try {
+            // Search without filter - should return all
+            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10);
+
+            $this->assertIsArray($result);
+            $this->assertArrayHasKey('items', $result);
+            $this->assertArrayHasKey('total', $result);
+            $this->assertGreaterThanOrEqual(3, $result['total']);
+
+            // Search with filter
+            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10, 'test-search');
+
+            $this->assertIsArray($result);
+            $this->assertGreaterThanOrEqual(2, $result['total']);
+
+            // Verify the filtered repos are in results
+            $repoNames = array_column($result['items'], 'name');
+            $this->assertContains($repo1Name, $repoNames);
+            $this->assertContains($repo2Name, $repoNames);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo1Name);
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo2Name);
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo3Name);
+        }
+    }
+
+    public function testSearchRepositoriesPagination(): void
+    {
+        $repo1 = 'test-pagination-1-' . \uniqid();
+        $repo2 = 'test-pagination-2-' . \uniqid();
+
+        $this->vcsAdapter->createRepository(self::$owner, $repo1, false);
+        $this->vcsAdapter->createRepository(self::$owner, $repo2, false);
+
+        try {
+            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 1, 'test-pagination');
+
+            $this->assertSame(1, count($result['items']));
+            $this->assertGreaterThanOrEqual(2, $result['total']);
+
+            $result2 = $this->vcsAdapter->searchRepositories('', self::$owner, 2, 1, 'test-pagination');
+            $this->assertSame(1, count($result2['items']));
+
+            $result20 = $this->vcsAdapter->searchRepositories('', self::$owner, 20, 1, 'test-pagination');
+            $this->assertIsArray($result20);
+            $this->assertEmpty($result20['items']);
+
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo1);
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo2);
+        }
+    }
+
+    public function testSearchRepositoriesNoResults(): void
+    {
+        $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10, 'nonexistent-repo-xyz-' . \uniqid());
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result['items']);
+        $this->assertSame(0, $result['total']);
+    }
+
+    public function testSearchRepositoriesInvalidOwner(): void
+    {
+        $result = $this->vcsAdapter->searchRepositories('', 'nonexistent-owner-' . \uniqid(), 1, 10);
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result['items']);
+        $this->assertSame(0, $result['total']);
     }
 
     public function testDeleteRepository(): void
@@ -625,7 +847,18 @@ class GiteaTest extends Base
 
     public function testGetOwnerName(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('not applicable for Gitea');
+
+        $this->vcsAdapter->getOwnerName('');
+    }
+
+    public function testGetOwnerNameWithRandomInput(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('not applicable for Gitea');
+
+        $this->vcsAdapter->getOwnerName('random-gibberish-' . \uniqid());
     }
 
     public function testGetUser(): void
@@ -656,7 +889,52 @@ class GiteaTest extends Base
 
     public function testGetPullRequestFromBranch(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-get-pr-from-branch-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'my-feature', 'main');
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'my-feature');
+
+        // Create PR
+        $pr = $this->vcsAdapter->createPullRequest(
+            self::$owner,
+            $repositoryName,
+            'Feature PR',
+            'my-feature',
+            'main'
+        );
+
+        $this->assertArrayHasKey('number', $pr);
+
+        // Test getPullRequestFromBranch
+        $result = $this->vcsAdapter->getPullRequestFromBranch(self::$owner, $repositoryName, 'my-feature');
+
+        $this->assertIsArray($result);
+        $this->assertNotEmpty($result);
+        $this->assertArrayHasKey('head', $result);
+
+        $resultHead = $result['head'] ?? [];
+        $this->assertSame('my-feature', $resultHead['ref'] ?? '');
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+    }
+
+    public function testGetPullRequestFromBranchNoPR(): void
+    {
+        $repositoryName = 'test-get-pr-no-pr-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'lonely-branch', 'main');
+
+        // Don't create a PR - just test the method
+        $result = $this->vcsAdapter->getPullRequestFromBranch(self::$owner, $repositoryName, 'lonely-branch');
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result);
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
     public function testCreateComment(): void
@@ -664,9 +942,95 @@ class GiteaTest extends Base
         $this->markTestSkipped('Will be implemented in follow-up PR');
     }
 
+    public function testCreateFile(): void
+    {
+        $repositoryName = 'test-create-file-'.\uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $result = $this->vcsAdapter->createFile(
+                self::$owner,
+                $repositoryName,
+                'test.md',
+                '# Test',
+                'Add test file'
+            );
+
+            $this->assertIsArray($result);
+            $this->assertNotEmpty($result);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
+    public function testCreateFileOnBranch(): void
+    {
+        $repositoryName = 'test-create-file-branch-'.\uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Main');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature', 'main');
+
+            // Create file on specific branch
+            $result = $this->vcsAdapter->createFile(
+                self::$owner,
+                $repositoryName,
+                'feature.md',
+                '# Feature',
+                'Add feature file',
+                'feature'  // ← Branch parameter
+            );
+
+            $this->assertIsArray($result);
+
+            // Verify it's on the right branch
+            $content = $this->vcsAdapter->getRepositoryContent(
+                self::$owner,
+                $repositoryName,
+                'feature.md',
+                'feature'
+            );
+            $this->assertSame('# Feature', $content['content']);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
     public function testListBranches(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-list-branches-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            // Create initial file on main branch
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+
+            // Create additional branches
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-1', 'main');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-2', 'main');
+
+            $branches = [];
+            $maxAttempts = 10;
+            for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
+                $branches = $this->vcsAdapter->listBranches(self::$owner, $repositoryName);
+
+                if (in_array('feature-1', $branches, true) && in_array('feature-2', $branches, true)) {
+                    break;
+                }
+
+                usleep(500000);
+            }
+
+            $this->assertIsArray($branches);
+            $this->assertNotEmpty($branches);
+            $this->assertContains('main', $branches);
+            $this->assertContains('feature-1', $branches);
+            $this->assertContains('feature-2', $branches);
+            $this->assertGreaterThanOrEqual(3, count($branches));
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
     }
 
     public function testCreateTag(): void
