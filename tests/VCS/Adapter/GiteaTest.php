@@ -878,7 +878,7 @@ class GiteaTest extends Base
             // Test createComment
             $commentId = $this->vcsAdapter->createComment(self::$owner, $repositoryName, $prNumber, 'Test comment');
 
-            $this->assertNotEmpty($commentId);
+            $this->assertNotEquals('', $commentId);
             $this->assertIsString($commentId);
             $this->assertIsNumeric($commentId);
 
