@@ -775,7 +775,7 @@ class GiteaTest extends Base
         $this->assertArrayHasKey('external', $result);
 
         $this->assertSame('feature-branch', $result['branch']);
-        $this->assertSame('42', $result['pullRequestNumber']);
+        $this->assertSame(42, $result['pullRequestNumber']);
         $this->assertSame('opened', $result['action']);
         $this->assertSame('abc123', $result['commitHash']);
         $this->assertSame('test-repo', $result['repositoryName']);

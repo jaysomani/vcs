@@ -823,17 +823,15 @@ class Gitea extends Git
                 $payloadPullRequest = $payload['pull_request'] ?? [];
                 $payloadPullRequestHead = $payloadPullRequest['head'] ?? [];
                 $payloadPullRequestHeadRepo = $payloadPullRequestHead['repo'] ?? [];
-                $payloadPullRequestHeadUser = $payloadPullRequestHead['user'] ?? [];
                 $payloadPullRequestUser = $payloadPullRequest['user'] ?? [];
                 $payloadPullRequestBase = $payloadPullRequest['base'] ?? [];
-                $payloadPullRequestBaseUser = $payloadPullRequestBase['user'] ?? [];
 
                 $repositoryId = strval($payloadRepository['id'] ?? '');
                 $branch = $payloadPullRequestHead['ref'] ?? '';
                 $repositoryName = $payloadRepository['name'] ?? '';
                 $repositoryUrl = $payloadRepository['html_url'] ?? '';
                 $branchUrl = !empty($repositoryUrl) && !empty($branch) ? $repositoryUrl . "/src/branch/" . $branch : '';
-                $pullRequestNumber = strval($payload['number'] ?? '');
+                $pullRequestNumber = $payload['number'] ?? '';
                 $action = $payload['action'] ?? '';
                 $owner = $payloadRepositoryOwner['login'] ?? '';
                 $authorUrl = $payloadSender['html_url'] ?? '';
@@ -877,6 +875,6 @@ class Gitea extends Git
      */
     public function validateWebhookEvent(string $payload, string $signature, string $signatureKey): bool
     {
-        return $signature === hash_hmac('sha256', $payload, $signatureKey);
+        return hash_equals($signature, hash_hmac('sha256', $payload, $signatureKey));
     }
 }
