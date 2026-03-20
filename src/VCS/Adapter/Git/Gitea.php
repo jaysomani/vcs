@@ -533,7 +533,7 @@ class Gitea extends Git
 
     public function getOwnerName(string $installationId, ?int $repositoryId = null): string
     {
-        if ($repositoryId === null) {
+        if ($repositoryId === null || $repositoryId <= 0) {
             throw new Exception("repositoryId is required for Gitea");
         }
 
@@ -555,11 +555,11 @@ class Gitea extends Git
         $responseBody = $response['body'] ?? [];
         $owner = $responseBody['owner'] ?? [];
 
-        if (!array_key_exists('login', $owner)) {
-            throw new Exception("Owner login missing in response");
+        if (empty($owner['login'])) {
+            throw new Exception("Owner login missing or empty in response");
         }
 
-        return $owner['login'] ?? '';
+        return $owner['login'];
     }
 
     public function getPullRequest(string $owner, string $repositoryName, int $pullRequestNumber): array

@@ -725,16 +725,26 @@ class GiteaTest extends Base
         $repositoryName = 'test-get-owner-name-' . \uniqid();
         $created = $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
-        $this->assertIsArray($created);
-        $this->assertArrayHasKey('id', $created);
-        $this->assertIsScalar($created['id']);
-        $repositoryId = (int) $created['id'];
+        try {
+            $this->assertIsArray($created);
+            $this->assertArrayHasKey('id', $created);
+            $this->assertIsScalar($created['id']);
+            $repositoryId = (int) $created['id'];
 
-        $ownerName = $this->vcsAdapter->getOwnerName('', $repositoryId);
+            $ownerName = $this->vcsAdapter->getOwnerName('', $repositoryId);
 
-        $this->assertSame(self::$owner, $ownerName);
+            $this->assertSame(self::$owner, $ownerName);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
 
-        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+    public function testGetOwnerNameWithZeroRepositoryId(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
+
+        $this->vcsAdapter->getOwnerName('', 0);
     }
 
     public function testGetOwnerNameWithoutRepositoryId(): void
