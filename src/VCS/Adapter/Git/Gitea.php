@@ -771,21 +771,21 @@ class Gitea extends Git
     }
 
     /**
-     * Generate git clone command
-     *
-     * @param string $owner Owner of the repository
-     * @param string $repositoryName Name of the repository
-     * @param string $version Branch name, commit hash, or tag
-     * @param string $versionType Type: branch, commit, or tag
-     * @param string $directory Directory to clone into
-     * @param string $rootDirectory Root directory for sparse checkout
-     * @return string Shell command to execute
-     */
-    public function generateCloneCommand(string $owner, string $repositoryName, string $directory, string $rootDirectory, string $version, string $versionType, string $accessToken = ''): string
+         * Generate git clone command
+         *
+         * @param string $owner Owner of the repository
+         * @param string $repositoryName Name of the repository
+         * @param string $version Branch name, commit hash, or tag
+         * @param string $versionType Type: branch, commit, or tag
+         * @param string $directory Directory to clone into
+         * @param string $rootDirectory Root directory for sparse checkout
+         * @return string Shell command to execute
+         */
+    public function generateCloneCommand(string $owner, string $repositoryName, string $version, string $versionType, string $directory, string $rootDirectory): string
     {
         $cloneUrl = "{$this->giteaUrl}/{$owner}/{$repositoryName}";
-        if (!empty($accessToken)) {
-            $cloneUrl = str_replace('://', "://{$owner}:{$accessToken}@", $this->giteaUrl) . "/{$owner}/{$repositoryName}";
+        if (!empty($this->accessToken)) {
+            $cloneUrl = str_replace('://', "://{$owner}:{$this->accessToken}@", $this->giteaUrl) . "/{$owner}/{$repositoryName}";
         }
 
         // SECURITY FIX: Escape clone URL
@@ -816,8 +816,7 @@ class Gitea extends Git
                 break;
             case self::CLONE_TYPE_TAG:
                 $tagName = escapeshellarg($version);
-                // FIX: Add --refs to exclude peeled refs (v1.0.0^{})
-                $commands[] = "git fetch --depth=1 origin refs/tags/$(git ls-remote --refs --tags origin {$tagName} | tail -n 1 | awk -F '/' '{print \$3}') && git checkout FETCH_HEAD";
+                $commands[] = "git fetch --depth=1 origin refs/tags/{$version} && git checkout FETCH_HEAD";
                 break;
             default:
                 throw new Exception("Unsupported clone type: {$versionType}");
@@ -870,6 +869,29 @@ class Gitea extends Git
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
             throw new Exception("Failed to create tag {$tagName}: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return $response['body'] ?? [];
+    }
+
+    /**
+     * Get commit statuses
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $commitHash SHA of the commit
+     * @return array<mixed> List of commit statuses
+     */
+    public function getCommitStatuses(string $owner, string $repositoryName, string $commitHash): array
+    {
+        $url = "/repos/{$owner}/{$repositoryName}/commits/{$commitHash}/statuses";
+
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to get commit statuses: HTTP {$responseHeadersStatusCode}");
         }
 
         return $response['body'] ?? [];

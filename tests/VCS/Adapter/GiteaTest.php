@@ -499,10 +499,10 @@ class GiteaTest extends Base
             $command = $this->vcsAdapter->generateCloneCommand(
                 self::$owner,
                 $repositoryName,
-                '/tmp/test-clone-' . \uniqid(),
-                '/',
                 'main',
-                \Utopia\VCS\Adapter\Git::CLONE_TYPE_BRANCH
+                \Utopia\VCS\Adapter\Git::CLONE_TYPE_BRANCH,
+                '/tmp/test-clone-' . \uniqid(),
+                '/'
             );
 
             $this->assertIsString($command);
@@ -529,12 +529,11 @@ class GiteaTest extends Base
             $command = $this->vcsAdapter->generateCloneCommand(
                 self::$owner,
                 $repositoryName,
-                '/tmp/test-clone-commit-' . \uniqid(),
-                '/',
                 $commitHash,
-                \Utopia\VCS\Adapter\Git::CLONE_TYPE_COMMIT
+                \Utopia\VCS\Adapter\Git::CLONE_TYPE_COMMIT,
+                '/tmp/test-clone-commit-' . \uniqid(),
+                '/'
             );
-
             $this->assertIsString($command);
             $this->assertStringContainsString('git fetch --depth=1', $command);
             $this->assertStringContainsString($commitHash, $command);
@@ -558,14 +557,13 @@ class GiteaTest extends Base
             // Create a tag
             $this->vcsAdapter->createTag(self::$owner, $repositoryName, 'v1.0.0', $commitHash, 'Release v1.0.0');
 
-            // Generate clone command for the tag
             $command = $this->vcsAdapter->generateCloneCommand(
                 self::$owner,
                 $repositoryName,
-                '/tmp/test-clone-tag-' . \uniqid(),
-                '/',
                 'v1.0.0',
-                \Utopia\VCS\Adapter\Git::CLONE_TYPE_TAG
+                \Utopia\VCS\Adapter\Git::CLONE_TYPE_TAG,
+                '/tmp/test-clone-tag-' . \uniqid(),
+                '/'
             );
 
             // Verify the command contains tag-specific git commands
@@ -578,6 +576,36 @@ class GiteaTest extends Base
             $this->assertStringContainsString('git checkout FETCH_HEAD', $command);
         } finally {
             $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
+    public function testGenerateCloneCommandWithInvalidRepository(): void
+    {
+        $directory = '/tmp/test-clone-invalid-' . \uniqid();
+
+        try {
+            $command = $this->vcsAdapter->generateCloneCommand(
+                'nonexistent-owner-' . \uniqid(),
+                'nonexistent-repo-' . \uniqid(),
+                'main',
+                \Utopia\VCS\Adapter\Git::CLONE_TYPE_BRANCH,
+                $directory,
+                '/'
+            );
+
+            $output = [];
+            exec($command . ' 2>&1', $output, $exitCode);
+
+            $cloneFailed = ($exitCode !== 0) || !file_exists($directory . '/README.md');
+
+            $this->assertTrue(
+                $cloneFailed,
+                'Clone should have failed for nonexistent repository. Exit code: ' . $exitCode
+            );
+        } finally {
+            if (\is_dir($directory)) {
+                exec('rm -rf ' . escapeshellarg($directory));
+            }
         }
     }
 
@@ -597,7 +625,6 @@ class GiteaTest extends Base
             $commit = $this->vcsAdapter->getLatestCommit(self::$owner, $repositoryName, 'main');
             $commitHash = $commit['commitHash'];
 
-            // Test updating commit status - should not throw
             $this->vcsAdapter->updateCommitStatus(
                 $repositoryName,
                 $commitHash,
@@ -608,8 +635,20 @@ class GiteaTest extends Base
                 'ci/tests'
             );
 
-            // If we get here without exception, test passes
-            $this->assertTrue(true);
+            $statuses = $this->vcsAdapter->getCommitStatuses(self::$owner, $repositoryName, $commitHash);
+            $this->assertIsArray($statuses);
+            $this->assertNotEmpty($statuses);
+
+            $found = false;
+            foreach ($statuses as $status) {
+                if (($status['context'] ?? '') === 'ci/tests') {
+                    $this->assertSame('success', $status['status'] ?? '');
+                    $this->assertSame('Tests passed', $status['description'] ?? '');
+                    $found = true;
+                    break;
+                }
+            }
+            $this->assertTrue($found, 'Expected status with context ci/tests was not found');
         } finally {
             $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
         }
@@ -631,6 +670,17 @@ class GiteaTest extends Base
         } finally {
             $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
         }
+    }
+
+    public function testUpdateCommitStatusWithNonExistingRepository(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->vcsAdapter->updateCommitStatus(
+            'nonexistent-repo-' . \uniqid(),
+            'abc123def456abc123def456abc123def456abc123',
+            self::$owner,
+            'success'
+        );
     }
 
     public function testGetCommit(): void
@@ -1039,14 +1089,11 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
         try {
-            // Create initial file
             $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
 
-            // Get commit hash
             $commit = $this->vcsAdapter->getLatestCommit(self::$owner, $repositoryName, 'main');
             $commitHash = $commit['commitHash'];
 
-            // Create tag
             $result = $this->vcsAdapter->createTag(
                 self::$owner,
                 $repositoryName,
@@ -1057,6 +1104,11 @@ class GiteaTest extends Base
 
             $this->assertIsArray($result);
             $this->assertNotEmpty($result);
+            $this->assertArrayHasKey('name', $result);
+            $this->assertSame('v1.0.0', $result['name']);
+            $this->assertArrayHasKey('commit', $result);
+            $this->assertArrayHasKey('sha', $result['commit']);
+            $this->assertSame($commitHash, $result['commit']['sha']);
         } finally {
             $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
         }
