@@ -25,8 +25,6 @@ abstract class Base extends TestCase
 
     abstract public function testGenerateCloneCommandWithCommitHash(): void;
 
-    abstract public function testGetEvent(): void;
-
     abstract public function testGetRepositoryName(): void;
 
     abstract public function testGetComment(): void;

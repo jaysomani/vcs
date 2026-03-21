@@ -641,12 +641,6 @@ class GiteaTest extends Base
         }
     }
 
-    public function testGetEvent(): void
-    {
-        // Base class requires this method - implemented via specific event tests below
-        $this->assertTrue(true);
-    }
-
     public function testGetEventPush(): void
     {
         $payload = json_encode([

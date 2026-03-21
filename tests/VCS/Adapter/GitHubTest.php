@@ -26,9 +26,9 @@ class GitHubTest extends Base
         $this->vcsAdapter->initializeVariables(installationId: $installationId, privateKey: $privateKey, appId: $appId, accessToken: '', refreshToken: '');
     }
 
-    public function testGetEvent(): void
+    public function testGetEventPush(): void
     {
-        $payload_push = '{
+        $payload = '{
             "created": false,
             "ref": "refs/heads/main",
             "before": "1234",
@@ -91,7 +91,19 @@ class GitHubTest extends Base
             }
         }';
 
-        $payload_pull_request = '{
+        $result = $this->vcsAdapter->getEvent('push', $payload);
+
+        $this->assertSame('main', $result['branch']);
+        $this->assertSame('603754812', $result['repositoryId']);
+        $this->assertCount(3, $result['affectedFiles']);
+        $this->assertSame('src/lib.js', $result['affectedFiles'][0]);
+        $this->assertSame('README.md', $result['affectedFiles'][1]);
+        $this->assertSame('src/main.js', $result['affectedFiles'][2]);
+    }
+
+    public function testGetEventPullRequest(): void
+    {
+        $payload = '{
             "action": "opened",
             "number": 1,
             "pull_request": {
@@ -133,7 +145,15 @@ class GitHubTest extends Base
             }
         }';
 
-        $payload_uninstall = '{
+        $result = $this->vcsAdapter->getEvent('pull_request', $payload);
+
+        $this->assertSame('opened', $result['action']);
+        $this->assertSame(1, $result['pullRequestNumber']);
+    }
+
+    public function testGetEventInstallation(): void
+    {
+        $payload = '{
             "action": "deleted",
             "installation": {
                 "id": 1234,
@@ -141,24 +161,12 @@ class GitHubTest extends Base
                     "login": "vermakhushboo"
                 }
             }
-        }
-        ';
+        }';
 
-        $pushResult = $this->vcsAdapter->getEvent('push', $payload_push);
-        $this->assertSame('main', $pushResult['branch']);
-        $this->assertSame('603754812', $pushResult['repositoryId']);
-        $this->assertCount(3, $pushResult['affectedFiles']);
-        $this->assertSame('src/lib.js', $pushResult['affectedFiles'][0]);
-        $this->assertSame('README.md', $pushResult['affectedFiles'][1]);
-        $this->assertSame('src/main.js', $pushResult['affectedFiles'][2]);
+        $result = $this->vcsAdapter->getEvent('installation', $payload);
 
-        $pullRequestResult = $this->vcsAdapter->getEvent('pull_request', $payload_pull_request);
-        $this->assertSame('opened', $pullRequestResult['action']);
-        $this->assertSame(1, $pullRequestResult['pullRequestNumber']);
-
-        $uninstallResult = $this->vcsAdapter->getEvent('installation', $payload_uninstall);
-        $this->assertSame('deleted', $uninstallResult['action']);
-        $this->assertSame('1234', $uninstallResult['installationId']);
+        $this->assertSame('deleted', $result['action']);
+        $this->assertSame('1234', $result['installationId']);
     }
 
     public function testGetComment(): void
