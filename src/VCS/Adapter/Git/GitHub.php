@@ -110,6 +110,16 @@ class GitHub extends Git
     }
 
     /**
+     * Create a webhook on a repository
+     *
+     * Note: Not applicable for GitHub - webhooks are managed via GitHub Apps
+     */
+    public function createWebhook(string $owner, string $repositoryName, string $url, string $secret, array $events = ['push', 'pull_request']): int
+    {
+        throw new Exception('Not applicable for GitHub - webhooks are managed via GitHub Apps');
+    }
+
+    /**
      * Create a file in a repository
      *
      * @param  string  $owner  Owner of the repository

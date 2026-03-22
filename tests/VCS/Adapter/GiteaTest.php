@@ -8,6 +8,7 @@ use Utopia\System\System;
 use Utopia\Tests\Base;
 use Utopia\VCS\Adapter\Git;
 use Utopia\VCS\Adapter\Git\Gitea;
+use Utopia\Fetch\Client;
 
 class GiteaTest extends Base
 {
@@ -56,70 +57,40 @@ class GiteaTest extends Base
         }
     }
 
-    private function configureWebhook(string $owner, string $repositoryName, string $secret): void
+    private function configureWebhook(string $owner, string $repositoryName, string $secret): int
     {
         $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000') ?? '';
-        $webhookUrl = $catcherUrl . '/webhook';
 
-        $payload = json_encode([
-            'type' => 'gitea',
-            'active' => true,
-            'events' => ['push', 'pull_request'],
-            'config' => [
-                'url' => $webhookUrl,
-                'content_type' => 'json',
-                'secret' => $secret,
-            ],
-        ]);
-
-        $ch = curl_init("{$giteaUrl}/api/v1/repos/{$owner}/{$repositoryName}/hooks");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Authorization: token ' . self::$accessToken,
-        ]);
-        curl_exec($ch);
-        curl_close($ch);
+        return $this->vcsAdapter->createWebhook(
+            $owner,
+            $repositoryName,
+            $catcherUrl . '/webhook',
+            $secret
+        );
     }
 
-
     /** @return array<mixed> */
-    private function getLastWebhookRequest(string $eventType = ''): array
+    private function getLastWebhookRequest(): array
     {
         $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
 
-        if (!empty($eventType)) {
-            $ch = curl_init("{$catcherUrl}/__find_request__?header_X-Gitea-Event={$eventType}");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            $response = (string) curl_exec($ch);
-            curl_close($ch);
+        $client = new Client();
+        $response = $client->fetch(
+            url: "{$catcherUrl}/__last_request__",
+            method: 'GET'
+        );
 
-            if (empty($response)) {
-                return [];
-            }
-
-            $decoded = json_decode($response, true);
-
-            if (is_array($decoded) && !empty($decoded)) {
-                return end($decoded);
-            }
-
+        if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
             return [];
         }
 
-        $ch = curl_init("{$catcherUrl}/__last_request__");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $response = (string) curl_exec($ch);
-        curl_close($ch);
+        $body = $response->text();
 
-        if (empty($response)) {
+        if (empty($body)) {
             return [];
         }
 
-        return json_decode($response, true) ?? [];
+        return json_decode($body, true) ?? [];
     }
 
     private function assertEventually(callable $probe, int $timeoutMs = 15000, int $waitMs = 500): void
@@ -140,17 +111,17 @@ class GiteaTest extends Base
         throw $lastException ?? new \Exception('assertEventually timed out');
     }
 
-
     private function clearWebhookRequests(): void
     {
         $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
 
-        $ch = curl_init("{$catcherUrl}/__clear__");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-        curl_exec($ch);
-        curl_close($ch);
+        $client = new Client();
+        $client->fetch(
+            url: "{$catcherUrl}/__clear__",
+            method: 'DELETE'
+        );
     }
+
     public function testCreateRepository(): void
     {
         $owner = self::$owner;
@@ -1333,21 +1304,12 @@ class GiteaTest extends Base
     {
         $repositoryName = 'test-webhook-push-' . \uniqid();
         $secret = 'test-webhook-secret-' . \uniqid();
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000') ?? '';
 
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
         try {
             $this->clearWebhookRequests();
             $this->configureWebhook(self::$owner, $repositoryName, $secret);
-
-            // Get hook ID to manually trigger delivery
-            $ch = curl_init("{$giteaUrl}/api/v1/repos/" . self::$owner . "/{$repositoryName}/hooks");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: token ' . self::$accessToken]);
-            $hooksResponse = (string) curl_exec($ch);
-            curl_close($ch);
-            $hookId = json_decode($hooksResponse, true)[0]['id'] ?? 1;
 
             // Trigger a real push by creating a file
             $this->vcsAdapter->createFile(
@@ -1358,26 +1320,14 @@ class GiteaTest extends Base
                 'Initial commit'
             );
 
-            // Manually trigger webhook delivery via Gitea API
-            $ch = curl_init("{$giteaUrl}/api/v1/repos/" . self::$owner . "/{$repositoryName}/hooks/{$hookId}/tests");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, '');
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: token ' . self::$accessToken,
-                'Content-Type: application/json',
-            ]);
-            curl_exec($ch);
-            curl_close($ch);
-
-            // Wait for push webhook to arrive
+            // Wait for push webhook to arrive automatically
             $webhookData = [];
             $this->assertEventually(function () use (&$webhookData) {
                 $webhookData = $this->getLastWebhookRequest();
                 $this->assertNotEmpty($webhookData, 'No webhook received');
                 $this->assertNotEmpty($webhookData['data'] ?? '', 'Webhook payload is empty');
                 $this->assertSame('push', $webhookData['headers']['X-Gitea-Event'] ?? '', 'Expected push event');
-            });
+            }, 15000, 500);
 
             $payload = $webhookData['data'];
             $headers = $webhookData['headers'] ?? [];
@@ -1396,7 +1346,6 @@ class GiteaTest extends Base
             $this->assertSame(self::$owner, $event['owner']);
             $this->assertNotEmpty($event['commitHash']);
         } finally {
-            $this->clearWebhookRequests();
             $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
         }
     }
@@ -1409,13 +1358,18 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
         try {
+            // Create all files BEFORE configuring webhook
+            // so those push events don't pollute the catcher
             $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
             $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-branch', 'main');
             $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'feature-branch');
 
             $this->configureWebhook(self::$owner, $repositoryName, $secret);
+
+            // Clear after setup so only PR event will arrive
             $this->clearWebhookRequests();
 
+            // Trigger real PR event
             $this->vcsAdapter->createPullRequest(
                 self::$owner,
                 $repositoryName,
@@ -1424,12 +1378,14 @@ class GiteaTest extends Base
                 'main'
             );
 
+            // Wait for pull_request webhook to arrive automatically
             $webhookData = [];
             $this->assertEventually(function () use (&$webhookData) {
-                $webhookData = $this->getLastWebhookRequest('pull_request');
-                $this->assertNotEmpty($webhookData, 'No pull_request webhook received');
+                $webhookData = $this->getLastWebhookRequest();
+                $this->assertNotEmpty($webhookData, 'No webhook received');
                 $this->assertNotEmpty($webhookData['data'] ?? '', 'Webhook payload is empty');
-            });
+                $this->assertSame('pull_request', $webhookData['headers']['X-Gitea-Event'] ?? '', 'Expected pull_request event');
+            }, 15000, 500);
 
             $payload = $webhookData['data'];
             $headers = $webhookData['headers'] ?? [];
@@ -1442,7 +1398,6 @@ class GiteaTest extends Base
             );
 
             $event = $this->vcsAdapter->getEvent('pull_request', $payload);
-
             $this->assertIsArray($event);
             $this->assertSame('feature-branch', $event['branch']);
             $this->assertSame($repositoryName, $event['repositoryName']);
@@ -1450,7 +1405,6 @@ class GiteaTest extends Base
             $this->assertContains($event['action'], ['opened', 'synchronized']);
             $this->assertGreaterThan(0, $event['pullRequestNumber']);
         } finally {
-            $this->clearWebhookRequests();
             $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
         }
     }

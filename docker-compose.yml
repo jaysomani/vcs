@@ -31,6 +31,7 @@ services:
       - GITEA__webhook__ALLOWED_HOST_LIST=*        
       - GITEA__webhook__SKIP_TLS_VERIFY=true
       - GITEA__webhook__DELIVER_TIMEOUT=10
+      - GITEA__server__LOCAL_ROOT_URL=http://gitea:3000/
     ports:
       - "3000:3000"
     volumes:
