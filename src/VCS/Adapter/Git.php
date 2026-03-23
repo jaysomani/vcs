@@ -83,4 +83,26 @@ abstract class Git extends Adapter
      */
     abstract public function createWebhook(string $owner, string $repositoryName, string $url, string $secret, array $events = ['push', 'pull_request']): int;
 
+
+    /**
+     * Create a tag in a repository
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $tagName Name of the tag (e.g., 'v1.0.0')
+     * @param string $target Target commit SHA or branch name
+     * @param string $message Tag message (optional)
+     * @return array<mixed> Created tag details
+     */
+    abstract public function createTag(string $owner, string $repositoryName, string $tagName, string $target, string $message = ''): array;
+
+    /**
+     * Get commit statuses
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $commitHash SHA of the commit
+     * @return array<mixed> List of commit statuses
+     */
+    abstract public function getCommitStatuses(string $owner, string $repositoryName, string $commitHash): array;
 }

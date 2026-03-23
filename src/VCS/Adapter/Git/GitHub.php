@@ -1004,4 +1004,14 @@ class GitHub extends Git
     {
         return $signature === ('sha256=' . hash_hmac('sha256', $payload, $signatureKey));
     }
+
+    public function createTag(string $owner, string $repositoryName, string $tagName, string $target, string $message = ''): array
+    {
+        throw new Exception('createTag() is not implemented for GitHub');
+    }
+
+    public function getCommitStatuses(string $owner, string $repositoryName, string $commitHash): array
+    {
+        throw new Exception('getCommitStatuses() is not implemented for GitHub');
+    }
 }

@@ -212,9 +212,19 @@ class Gitea extends Git
         ];
     }
 
+    /**
+     * Get installation repository
+     *
+     * Note: Gitea doesn't have GitHub App installations.
+     * This method is not applicable and throws an exception.
+     *
+     * @param string $repositoryName Name of the repository
+     * @return array<mixed>
+     * @throws Exception Always throws as installations don't exist in Gitea
+     */
     public function getInstallationRepository(string $repositoryName): array
     {
-        throw new Exception("Not implemented yet");
+        throw new Exception("getInstallationRepository is not applicable for Gitea - use getRepository() with owner and repo name instead");
     }
 
     public function getRepository(string $owner, string $repositoryName): array
@@ -574,9 +584,25 @@ class Gitea extends Git
         return (string) ($responseBody['id'] ?? '');
     }
 
+    /**
+     * Get user information
+     *
+     * @param string $username Username to look up
+     * @return array<mixed> User information
+     */
     public function getUser(string $username): array
     {
-        throw new Exception("Not implemented yet");
+        $url = "/users/" . rawurlencode($username);
+
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to get user: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return $response['body'] ?? [];
     }
 
     public function getOwnerName(string $installationId, ?int $repositoryId = null): string
@@ -777,14 +803,100 @@ class Gitea extends Git
         ];
     }
 
+    /**
+     * Update commit status
+     *
+     * @param string $repositoryName Name of the repository
+     * @param string $commitHash SHA of the commit
+     * @param string $owner Owner of the repository
+     * @param string $state Status: success, error, failure, pending, warning
+     * @param string $description Status description
+     * @param string $target_url Target URL for status
+     * @param string $context Status context/identifier
+     * @return void
+     */
     public function updateCommitStatus(string $repositoryName, string $commitHash, string $owner, string $state, string $description = '', string $target_url = '', string $context = ''): void
     {
-        throw new Exception("Not implemented yet");
+        $url = "/repos/{$owner}/{$repositoryName}/statuses/{$commitHash}";
+
+        $body = [
+            'state' => $state,
+        ];
+
+        if (!empty($description)) {
+            $body['description'] = $description;
+        }
+
+        if (!empty($target_url)) {
+            $body['target_url'] = $target_url;
+        }
+
+        if (!empty($context)) {
+            $body['context'] = $context;
+        }
+
+        $response = $this->call(self::METHOD_POST, $url, ['Authorization' => "token $this->accessToken"], $body);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to update commit status: HTTP {$responseHeadersStatusCode}");
+        }
     }
 
+    /**
+         * Generate git clone command
+         *
+         * @param string $owner Owner of the repository
+         * @param string $repositoryName Name of the repository
+         * @param string $version Branch name, commit hash, or tag
+         * @param string $versionType Type: branch, commit, or tag
+         * @param string $directory Directory to clone into
+         * @param string $rootDirectory Root directory for sparse checkout
+         * @return string Shell command to execute
+         */
     public function generateCloneCommand(string $owner, string $repositoryName, string $version, string $versionType, string $directory, string $rootDirectory): string
     {
-        throw new Exception("Not implemented yet");
+        $cloneUrl = "{$this->giteaUrl}/{$owner}/{$repositoryName}";
+        if (!empty($this->accessToken)) {
+            $cloneUrl = str_replace('://', "://{$owner}:{$this->accessToken}@", $this->giteaUrl) . "/{$owner}/{$repositoryName}";
+        }
+
+        // SECURITY FIX: Escape clone URL
+        $cloneUrl = escapeshellarg($cloneUrl);
+        $directory = escapeshellarg($directory);
+        $rootDirectory = escapeshellarg($rootDirectory);
+
+        $commands = [
+            "mkdir -p {$directory}",
+            "cd {$directory}",
+            "git config --global init.defaultBranch main",
+            "git init",
+            "git remote add origin {$cloneUrl}",
+            "git config core.sparseCheckout true",
+            "echo {$rootDirectory} >> .git/info/sparse-checkout",
+            "git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'",
+            "git config remote.origin.tagopt --no-tags",
+        ];
+
+        switch ($versionType) {
+            case self::CLONE_TYPE_BRANCH:
+                $branchName = escapeshellarg($version);
+                $commands[] = "if git ls-remote --exit-code --heads origin {$branchName}; then git pull --depth=1 origin {$branchName} && git checkout {$branchName}; else git checkout -b {$branchName}; fi";
+                break;
+            case self::CLONE_TYPE_COMMIT:
+                $commitHash = escapeshellarg($version);
+                $commands[] = "git fetch --depth=1 origin {$commitHash} && git checkout {$commitHash}";
+                break;
+            case self::CLONE_TYPE_TAG:
+                $tagName = escapeshellarg($version);
+                $commands[] = "git fetch --depth=1 origin refs/tags/{$version} && git checkout FETCH_HEAD";
+                break;
+            default:
+                throw new Exception("Unsupported clone type: {$versionType}");
+        }
+
+        return implode(' && ', $commands);
     }
 
     /**
@@ -924,5 +1036,67 @@ class Gitea extends Git
     public function validateWebhookEvent(string $payload, string $signature, string $signatureKey): bool
     {
         return hash_equals($signature, hash_hmac('sha256', $payload, $signatureKey));
+    }
+
+    /**
+     * Create a tag in a repository
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $tagName Name of the tag (e.g., 'v1.0.0')
+     * @param string $target Target commit SHA or branch name
+     * @param string $message Tag message (optional)
+     * @return array<mixed> Response from API
+     */
+    public function createTag(string $owner, string $repositoryName, string $tagName, string $target, string $message = ''): array
+    {
+        $url = "/repos/{$owner}/{$repositoryName}/tags";
+
+        $payload = [
+            'tag_name' => $tagName,
+            'target' => $target,
+        ];
+
+        if (!empty($message)) {
+            $payload['message'] = $message;
+        }
+
+        $response = $this->call(
+            self::METHOD_POST,
+            $url,
+            ['Authorization' => "token $this->accessToken"],
+            $payload
+        );
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to create tag {$tagName}: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return $response['body'] ?? [];
+    }
+
+    /**
+     * Get commit statuses
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $commitHash SHA of the commit
+     * @return array<mixed> List of commit statuses
+     */
+    public function getCommitStatuses(string $owner, string $repositoryName, string $commitHash): array
+    {
+        $url = "/repos/{$owner}/{$repositoryName}/commits/{$commitHash}/statuses";
+
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to get commit statuses: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return $response['body'] ?? [];
     }
 }
