@@ -181,10 +181,9 @@ class GitHubTest extends Base
         $this->assertNotEmpty($result);
     }
 
-    public function testGetRepositoryAccessType(): void
+    public function testHasAccessToAllRepositories(): void
     {
-        $accessType = $this->vcsAdapter->getRepositoryAccessType();
-        $this->assertSame('all', $accessType);
+        $this->assertTrue($this->vcsAdapter->hasAccessToAllRepositories());
     }
 
     public function testGetInstallationRepository(): void

@@ -201,6 +201,11 @@ class GiteaTest extends Base
         $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
+    public function testHasAccessToAllRepositories(): void
+    {
+        $this->assertTrue($this->vcsAdapter->hasAccessToAllRepositories());
+    }
+
     public function testGetRepositoryTreeWithSlashInBranchName(): void
     {
         $repositoryName = 'test-branch-with-slash-' . \uniqid();

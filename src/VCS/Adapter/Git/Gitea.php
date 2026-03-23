@@ -118,15 +118,15 @@ class Gitea extends Git
     }
 
     /**
-     * Get repository access type for the installation
+     * Determines whether the installation has access to all repositories or specific repositories
      *
-     * @return string 'all' if installation has access to all repositories, 'selected' if it has access to specific repositories
+     * @return bool True if installation has access to all repositories, false if it has access to specific repositories
      *
      * @throws Exception
      */
-    public function getRepositoryAccessType(): string
+    public function hasAccessToAllRepositories(): bool
     {
-        throw new Exception('Not implemented yet');
+        return true;
     }
 
     /**
