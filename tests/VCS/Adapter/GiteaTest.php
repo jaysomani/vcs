@@ -13,6 +13,7 @@ class GiteaTest extends Base
 {
     protected static string $accessToken = '';
     protected static string $owner = '';
+    protected static string $defaultBranch = 'main';
 
     protected function createVCSAdapter(): Git
     {
@@ -26,7 +27,7 @@ class GiteaTest extends Base
         }
 
         $adapter = new Gitea(new Cache(new None()));
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000') ?? '';
+        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000');
 
         $adapter->initializeVariables(
             installationId: '',
@@ -106,7 +107,7 @@ class GiteaTest extends Base
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'comment-test', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'comment-test', static::$defaultBranch);
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test', 'Add test file', 'comment-test');
 
             $pr = $this->vcsAdapter->createPullRequest(
@@ -114,7 +115,7 @@ class GiteaTest extends Base
                 $repositoryName,
                 'Comment Test PR',
                 'comment-test',
-                'main'
+                static::$defaultBranch
             );
 
             $prNumber = $pr['number'] ?? 0;
@@ -147,7 +148,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', static::$defaultBranch);
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
 
         // Create PR
@@ -156,7 +157,7 @@ class GiteaTest extends Base
             $repositoryName,
             'Test PR',
             'test-branch',
-            'main'
+            static::$defaultBranch
         );
 
         $prNumber = $pr['number'] ?? 0;
@@ -212,7 +213,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature/test-branch', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature/test-branch', static::$defaultBranch);
 
         $tree = $this->vcsAdapter->getRepositoryTree(static::$owner, $repositoryName, 'feature/test-branch');
 
@@ -296,7 +297,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'src/lib.php', '<?php // library');
 
         // Test non-recursive (should only show root level)
-        $tree = $this->vcsAdapter->getRepositoryTree(static::$owner, $repositoryName, 'main', false);
+        $tree = $this->vcsAdapter->getRepositoryTree(static::$owner, $repositoryName, static::$defaultBranch, false);
 
         $this->assertIsArray($tree);
         $this->assertContains('README.md', $tree);
@@ -304,7 +305,7 @@ class GiteaTest extends Base
         $this->assertCount(2, $tree); // Only README.md and src folder at root
 
         // Test recursive (should show all files including nested)
-        $treeRecursive = $this->vcsAdapter->getRepositoryTree(static::$owner, $repositoryName, 'main', true);
+        $treeRecursive = $this->vcsAdapter->getRepositoryTree(static::$owner, $repositoryName, static::$defaultBranch, true);
 
         $this->assertIsArray($treeRecursive);
         $this->assertContains('README.md', $treeRecursive);
@@ -358,7 +359,7 @@ class GiteaTest extends Base
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'main branch content');
 
-        $result = $this->vcsAdapter->getRepositoryContent(static::$owner, $repositoryName, 'test.txt', 'main');
+        $result = $this->vcsAdapter->getRepositoryContent(static::$owner, $repositoryName, 'test.txt', static::$defaultBranch);
 
         $this->assertIsArray($result);
         $this->assertSame('main branch content', $result['content']);
@@ -447,7 +448,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-branch', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'feature content', 'Add feature', 'feature-branch');
 
         $pr = $this->vcsAdapter->createPullRequest(
@@ -455,7 +456,7 @@ class GiteaTest extends Base
             $repositoryName,
             'Test PR',
             'feature-branch',
-            'main',
+            static::$defaultBranch,
             'Test PR description'
         );
 
@@ -505,7 +506,7 @@ class GiteaTest extends Base
             $command = $this->vcsAdapter->generateCloneCommand(
                 static::$owner,
                 $repositoryName,
-                'main',
+                static::$defaultBranch,
                 \Utopia\VCS\Adapter\Git::CLONE_TYPE_BRANCH,
                 '/tmp/test-clone-' . \uniqid(),
                 '/'
@@ -529,7 +530,7 @@ class GiteaTest extends Base
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
 
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, 'main');
+            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
             $commitHash = $commit['commitHash'];
 
             $command = $this->vcsAdapter->generateCloneCommand(
@@ -557,7 +558,7 @@ class GiteaTest extends Base
             // Create initial file and get commit hash
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test Tag');
 
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, 'main');
+            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
             $commitHash = $commit['commitHash'];
 
             // Create a tag
@@ -593,7 +594,7 @@ class GiteaTest extends Base
             $command = $this->vcsAdapter->generateCloneCommand(
                 'nonexistent-owner-' . \uniqid(),
                 'nonexistent-repo-' . \uniqid(),
-                'main',
+                static::$defaultBranch,
                 \Utopia\VCS\Adapter\Git::CLONE_TYPE_BRANCH,
                 $directory,
                 '/'
@@ -622,7 +623,7 @@ class GiteaTest extends Base
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', static::$defaultBranch);
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
 
             // Create PR
@@ -631,7 +632,7 @@ class GiteaTest extends Base
                 $repositoryName,
                 'Test PR',
                 'test-branch',
-                'main'
+                static::$defaultBranch
             );
 
             $prNumber = $pr['number'] ?? 0;
@@ -661,7 +662,7 @@ class GiteaTest extends Base
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
 
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, 'main');
+            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
             $commitHash = $commit['commitHash'];
 
             $this->vcsAdapter->updateCommitStatus(
@@ -730,7 +731,7 @@ class GiteaTest extends Base
         $customMessage = 'Test commit message';
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test Commit', $customMessage);
 
-        $latestCommit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, 'main');
+        $latestCommit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
         $commitHash = $latestCommit['commitHash'];
 
         $result = $this->vcsAdapter->getCommit(static::$owner, $repositoryName, $commitHash);
@@ -761,7 +762,7 @@ class GiteaTest extends Base
         $secondMessage = 'Second commit';
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test', $firstMessage);
 
-        $commit1 = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, 'main');
+        $commit1 = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
 
         $this->assertIsArray($commit1);
         $this->assertArrayHasKey('commitHash', $commit1);
@@ -781,7 +782,7 @@ class GiteaTest extends Base
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test content', $secondMessage);
 
-        $commit2 = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, 'main');
+        $commit2 = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
 
         $this->assertIsArray($commit2);
         $this->assertNotEmpty($commit2['commitHash']);
@@ -875,7 +876,7 @@ class GiteaTest extends Base
         $this->assertArrayHasKey('owner', $result);
         $this->assertArrayHasKey('affectedFiles', $result);
 
-        $this->assertSame('main', $result['branch']);
+        $this->assertSame(static::$defaultBranch, $result['branch']);
         $this->assertSame('def456', $result['commitHash']);
         $this->assertSame('test-repo', $result['repositoryName']);
         $this->assertSame('test-owner', $result['owner']);
@@ -910,7 +911,7 @@ class GiteaTest extends Base
                     ],
                 ],
                 'base' => [
-                    'ref' => 'main',
+                    'ref' => static::$defaultBranch,
                     'sha' => 'def456',
                     'user' => [
                         'login' => 'base-owner',
@@ -972,7 +973,7 @@ class GiteaTest extends Base
                     ],
                 ],
                 'base' => [
-                    'ref' => 'main',
+                    'ref' => static::$defaultBranch,
                 ],
                 'user' => [
                     'avatar_url' => 'http://gitea:3000/avatars/external',
@@ -1175,7 +1176,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithZeroRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('', 0);
     }
@@ -1183,7 +1184,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithoutRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('');
     }
@@ -1198,7 +1199,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithNullRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('', null);
     }
@@ -1222,9 +1223,9 @@ class GiteaTest extends Base
 
     public function testGetInstallationRepository(): void
     {
-        // This method is not applicable for Gitea
+        // This method is not applicable for this adapter
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('not applicable for this adapter');
 
         $this->vcsAdapter->getInstallationRepository('any-repo-name');
     }
@@ -1235,7 +1236,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'my-feature', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'my-feature', static::$defaultBranch);
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'my-feature');
 
         // Create PR
@@ -1244,7 +1245,7 @@ class GiteaTest extends Base
             $repositoryName,
             'Feature PR',
             'my-feature',
-            'main'
+            static::$defaultBranch
         );
 
         $this->assertArrayHasKey('number', $pr);
@@ -1268,7 +1269,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'lonely-branch', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'lonely-branch', static::$defaultBranch);
 
         // Don't create a PR - just test the method
         $result = $this->vcsAdapter->getPullRequestFromBranch(static::$owner, $repositoryName, 'lonely-branch');
@@ -1286,7 +1287,7 @@ class GiteaTest extends Base
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', static::$defaultBranch);
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
 
             // Create PR
@@ -1295,7 +1296,7 @@ class GiteaTest extends Base
                 $repositoryName,
                 'Test PR',
                 'test-branch',
-                'main'
+                static::$defaultBranch
             );
 
             $prNumber = $pr['number'] ?? 0;
@@ -1344,7 +1345,7 @@ class GiteaTest extends Base
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Main');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature', static::$defaultBranch);
 
             // Create file on specific branch
             $result = $this->vcsAdapter->createFile(
@@ -1381,8 +1382,8 @@ class GiteaTest extends Base
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
 
             // Create additional branches
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-1', 'main');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-2', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-1', static::$defaultBranch);
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-2', static::$defaultBranch);
 
             $branches = [];
             $maxAttempts = 10;
@@ -1398,7 +1399,7 @@ class GiteaTest extends Base
 
             $this->assertIsArray($branches);
             $this->assertNotEmpty($branches);
-            $this->assertContains('main', $branches);
+            $this->assertContains(static::$defaultBranch, $branches);
             $this->assertContains('feature-1', $branches);
             $this->assertContains('feature-2', $branches);
             $this->assertGreaterThanOrEqual(3, count($branches));
@@ -1415,7 +1416,7 @@ class GiteaTest extends Base
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
 
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, 'main');
+            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
             $commitHash = $commit['commitHash'];
 
             $result = $this->vcsAdapter->createTag(
@@ -1479,7 +1480,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         try {
-            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000');
             $this->deleteLastWebhookRequest();
             $this->vcsAdapter->createWebhook(static::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
 
@@ -1513,7 +1514,7 @@ class GiteaTest extends Base
 
             $event = $this->vcsAdapter->getEvent('push', $payload);
             $this->assertIsArray($event);
-            $this->assertSame('main', $event['branch']);
+            $this->assertSame(static::$defaultBranch, $event['branch']);
             $this->assertSame($repositoryName, $event['repositoryName']);
             $this->assertSame(static::$owner, $event['owner']);
             $this->assertNotEmpty($event['commitHash']);
@@ -1533,10 +1534,10 @@ class GiteaTest extends Base
             // Create all files BEFORE configuring webhook
             // so those push events don't pollute the catcher
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-branch', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'feature-branch');
 
-            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000');
             $this->vcsAdapter->createWebhook(static::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
 
             // Clear after setup so only PR event will arrive
@@ -1548,7 +1549,7 @@ class GiteaTest extends Base
                 $repositoryName,
                 'Test Webhook PR',
                 'feature-branch',
-                'main'
+                static::$defaultBranch
             );
 
             // Wait for pull_request webhook to arrive automatically
