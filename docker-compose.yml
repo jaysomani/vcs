@@ -7,16 +7,22 @@ services:
       - ./tests:/usr/local/src/tests
       - ./phpunit.xml:/usr/local/src/phpunit.xml
       - gitea-data:/data:ro
+      - forgejo-data:/forgejo-data:ro
     environment:
       - TESTS_GITHUB_PRIVATE_KEY
       - TESTS_GITHUB_APP_IDENTIFIER
       - TESTS_GITHUB_INSTALLATION_ID
       - TESTS_GITEA_URL=http://gitea:3000
-      - TESTS_GITEA_REQUEST_CATCHER_URL=http://request-catcher:5000 
+      - TESTS_GITEA_REQUEST_CATCHER_URL=http://request-catcher:5000
+      - TESTS_FORGEJO_URL=http://forgejo:3000
     depends_on:
       gitea:
         condition: service_healthy
       gitea-bootstrap:
+        condition: service_completed_successfully
+      forgejo:
+        condition: service_healthy
+      forgejo-bootstrap:
         condition: service_completed_successfully
       request-catcher:                                               
         condition: service_started
@@ -65,5 +71,46 @@ services:
     image: appwrite/requestcatcher:1.1.0
     ports:
       - "5000:5000"
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:9
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__database__DB_TYPE=sqlite3
+      - FORGEJO__security__INSTALL_LOCK=true
+      - FORGEJO__webhook__ALLOWED_HOST_LIST=*
+      - FORGEJO__webhook__SKIP_TLS_VERIFY=true
+      - FORGEJO__webhook__DELIVER_TIMEOUT=10
+      - FORGEJO__server__LOCAL_ROOT_URL=http://forgejo:3000/
+    volumes:
+      - forgejo-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  forgejo-bootstrap:
+    image: codeberg.org/forgejo/forgejo:9
+    volumes:
+      - forgejo-data:/data
+    depends_on:
+      forgejo:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    environment:
+      - FORGEJO_ADMIN_USERNAME=${FORGEJO_ADMIN_USERNAME:-utopia}
+      - FORGEJO_ADMIN_PASSWORD=${FORGEJO_ADMIN_PASSWORD:-password}
+      - FORGEJO_ADMIN_EMAIL=${FORGEJO_ADMIN_EMAIL:-utopia@example.com}
+    command: >
+      -c "
+        su git -c \"forgejo admin user create --username $$FORGEJO_ADMIN_USERNAME --password $$FORGEJO_ADMIN_PASSWORD --email $$FORGEJO_ADMIN_EMAIL --admin --must-change-password=false\" || true &&
+        TOKEN=$$(su git -c \"forgejo admin user generate-access-token --username $$FORGEJO_ADMIN_USERNAME --token-name $$FORGEJO_ADMIN_USERNAME-token --scopes all --raw\") &&
+        echo $$TOKEN > /data/forgejo/token.txt
+      "
+
 volumes:
   gitea-data:
+  forgejo-data:
