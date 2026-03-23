@@ -71,7 +71,7 @@ class Gitea extends Git
             return;
         }
 
-        throw new Exception("accessToken is required for Gitea adapter.");
+        throw new Exception("accessToken is required for this adapter.");
     }
 
     /**
@@ -82,7 +82,7 @@ class Gitea extends Git
      */
     protected function generateAccessToken(string $privateKey, string $appId): void
     {
-        // Not applicable for Gitea - OAuth2 tokens are passed directly
+        // Not applicable for this adapter - OAuth2 tokens are passed directly
         return;
     }
 
@@ -224,7 +224,7 @@ class Gitea extends Git
      */
     public function getInstallationRepository(string $repositoryName): array
     {
-        throw new Exception("getInstallationRepository is not applicable for Gitea - use getRepository() with owner and repo name instead");
+        throw new Exception("getInstallationRepository is not applicable for this adapter - use getRepository() with owner and repo name instead");
     }
 
     public function getRepository(string $owner, string $repositoryName): array
@@ -613,7 +613,7 @@ class Gitea extends Git
     public function getOwnerName(string $installationId, ?int $repositoryId = null): string
     {
         if ($repositoryId === null || $repositoryId <= 0) {
-            throw new Exception("repositoryId is required for Gitea");
+            throw new Exception("repositoryId is required for this adapter");
         }
 
         $url = "/repositories/{$repositoryId}";
