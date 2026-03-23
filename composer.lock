@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "53c307bde5f5612420f5359faeea0b92",
+    "content-hash": "c852a00fe5b6a9a36484ffc38940afcd",
     "packages": [
         {
             "name": "adhocore/jwt",
@@ -1979,6 +1979,46 @@
                 "source": "https://github.com/utopia-php/cache/tree/1.0.1"
             },
             "time": "2026-03-12T03:39:09+00:00"
+        },
+        {
+            "name": "utopia-php/fetch",
+            "version": "1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/utopia-php/fetch.git",
+                "reference": "89760880428d869d9da0ebc45bab207befda4c4d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/utopia-php/fetch/zipball/89760880428d869d9da0ebc45bab207befda4c4d",
+                "reference": "89760880428d869d9da0ebc45bab207befda4c4d",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.5.0",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^9.5",
+                "swoole/ide-helper": "^6.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Utopia\\Fetch\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "A simple library that provides an interface for making HTTP Requests.",
+            "support": {
+                "issues": "https://github.com/utopia-php/fetch/issues",
+                "source": "https://github.com/utopia-php/fetch/tree/1.0.0"
+            },
+            "time": "2026-01-19T09:50:33+00:00"
         },
         {
             "name": "utopia-php/pools",
@@ -4066,12 +4106,12 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": [],
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
         "php": ">=8.0"
     },
-    "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "platform-dev": [],
+    "plugin-api-version": "2.6.0"
 }

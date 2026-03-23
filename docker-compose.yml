@@ -12,11 +12,14 @@ services:
       - TESTS_GITHUB_APP_IDENTIFIER
       - TESTS_GITHUB_INSTALLATION_ID
       - TESTS_GITEA_URL=http://gitea:3000
+      - TESTS_GITEA_REQUEST_CATCHER_URL=http://request-catcher:5000 
     depends_on:
       gitea:
         condition: service_healthy
       gitea-bootstrap:
         condition: service_completed_successfully
+      request-catcher:                                               
+        condition: service_started
 
   gitea:
     image: gitea/gitea:1.21.5
@@ -25,6 +28,10 @@ services:
       - USER_GID=1000
       - GITEA__database__DB_TYPE=sqlite3
       - GITEA__security__INSTALL_LOCK=true
+      - GITEA__webhook__ALLOWED_HOST_LIST=*        
+      - GITEA__webhook__SKIP_TLS_VERIFY=true
+      - GITEA__webhook__DELIVER_TIMEOUT=10
+      - GITEA__server__LOCAL_ROOT_URL=http://gitea:3000/
     ports:
       - "3000:3000"
     volumes:
@@ -54,6 +61,9 @@ services:
         TOKEN=$$(su git -c \"gitea admin user generate-access-token --username $$GITEA_ADMIN_USERNAME --token-name $$GITEA_ADMIN_USERNAME-token --scopes all --raw\") &&
         echo $$TOKEN > /data/gitea/token.txt
       "
-
+  request-catcher:                                                   
+    image: appwrite/requestcatcher:1.1.0
+    ports:
+      - "5000:5000"
 volumes:
   gitea-data:

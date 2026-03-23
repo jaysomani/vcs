@@ -473,6 +473,43 @@ class Gitea extends Git
         return $responseBody;
     }
 
+    /**
+     * Create a webhook on a repository
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $url Webhook URL to send events to
+     * @param string $secret Webhook secret for signature validation
+     * @param array<string> $events Events to trigger the webhook
+     * @return int Webhook ID
+     */
+    public function createWebhook(string $owner, string $repositoryName, string $url, string $secret, array $events = ['push', 'pull_request']): int
+    {
+        $response = $this->call(
+            self::METHOD_POST,
+            "/repos/{$owner}/{$repositoryName}/hooks",
+            ['Authorization' => "token $this->accessToken"],
+            [
+                'type' => 'gitea',
+                'active' => true,
+                'events' => $events,
+                'config' => [
+                    'url' => $url,
+                    'content_type' => 'json',
+                    'secret' => $secret,
+                ],
+            ]
+        );
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to create webhook: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return (int) ($response['body']['id'] ?? 0);
+    }
+
     public function createComment(string $owner, string $repositoryName, int $pullRequestNumber, string $comment): string
     {
         $url = "/repos/{$owner}/{$repositoryName}/issues/{$pullRequestNumber}/comments";
@@ -739,13 +776,142 @@ class Gitea extends Git
         throw new Exception("Not implemented yet");
     }
 
+    /**
+     * Parses webhook event payload
+     *
+     * @param string $event Type of event: push, pull_request, etc
+     * @param string $payload The webhook payload received from Gitea
+     * @return array<mixed> Parsed payload as an array
+     */
     public function getEvent(string $event, string $payload): array
     {
-        throw new Exception("Not implemented yet");
+        $payload = json_decode($payload, true);
+
+        if ($payload === null || !is_array($payload)) {
+            throw new Exception("Invalid payload.");
+        }
+
+        switch ($event) {
+            case 'push':
+                $payloadRepository = $payload['repository'] ?? [];
+                $payloadRepositoryOwner = $payloadRepository['owner'] ?? [];
+                $payloadSender = $payload['sender'] ?? [];
+                $payloadHeadCommit = $payload['head_commit'] ?? [];
+                $payloadHeadCommitAuthor = $payloadHeadCommit['author'] ?? [];
+
+                $branchCreated = $payload['created'] ?? false;
+                $branchDeleted = $payload['deleted'] ?? false;
+                $repositoryId = strval($payloadRepository['id'] ?? '');
+                $repositoryName = $payloadRepository['name'] ?? '';
+                $branch = str_replace('refs/heads/', '', $payload['ref'] ?? '');
+                $repositoryUrl = $payloadRepository['html_url'] ?? '';
+                $branchUrl = !empty($repositoryUrl) && !empty($branch) ? $repositoryUrl . "/src/branch/" . $branch : '';
+                $commitHash = $payload['after'] ?? '';
+                $owner = $payloadRepositoryOwner['login'] ?? '';
+                $authorUrl = $payloadSender['html_url'] ?? '';
+                $authorAvatarUrl = $payloadSender['avatar_url'] ?? '';
+                $headCommitAuthorName = $payloadHeadCommitAuthor['name'] ?? '';
+                $headCommitAuthorEmail = $payloadHeadCommitAuthor['email'] ?? '';
+                $headCommitMessage = $payloadHeadCommit['message'] ?? '';
+                $headCommitUrl = $payloadHeadCommit['url'] ?? '';
+
+                $affectedFiles = [];
+                foreach (($payload['commits'] ?? []) as $commit) {
+                    foreach (($commit['added'] ?? []) as $added) {
+                        $affectedFiles[$added] = true;
+                    }
+
+                    foreach (($commit['removed'] ?? []) as $removed) {
+                        $affectedFiles[$removed] = true;
+                    }
+
+                    foreach (($commit['modified'] ?? []) as $modified) {
+                        $affectedFiles[$modified] = true;
+                    }
+                }
+
+                return [
+                    'branchCreated' => $branchCreated,
+                    'branchDeleted' => $branchDeleted,
+                    'branch' => $branch,
+                    'branchUrl' => $branchUrl,
+                    'repositoryId' => $repositoryId,
+                    'repositoryName' => $repositoryName,
+                    'repositoryUrl' => $repositoryUrl,
+                    'installationId' => '',  // Gitea doesn't have installations
+                    'commitHash' => $commitHash,
+                    'owner' => $owner,
+                    'authorUrl' => $authorUrl,
+                    'authorAvatarUrl' => $authorAvatarUrl,
+                    'headCommitAuthorName' => $headCommitAuthorName,
+                    'headCommitAuthorEmail' => $headCommitAuthorEmail,
+                    'headCommitMessage' => $headCommitMessage,
+                    'headCommitUrl' => $headCommitUrl,
+                    'external' => false,
+                    'pullRequestNumber' => '',
+                    'action' => '',
+                    'affectedFiles' => \array_keys($affectedFiles),
+                ];
+
+            case 'pull_request':
+                $payloadRepository = $payload['repository'] ?? [];
+                $payloadRepositoryOwner = $payloadRepository['owner'] ?? [];
+                $payloadSender = $payload['sender'] ?? [];
+                $payloadPullRequest = $payload['pull_request'] ?? [];
+                $payloadPullRequestHead = $payloadPullRequest['head'] ?? [];
+                $payloadPullRequestHeadRepo = $payloadPullRequestHead['repo'] ?? [];
+                $payloadPullRequestUser = $payloadPullRequest['user'] ?? [];
+                $payloadPullRequestBase = $payloadPullRequest['base'] ?? [];
+
+                $repositoryId = strval($payloadRepository['id'] ?? '');
+                $branch = $payloadPullRequestHead['ref'] ?? '';
+                $repositoryName = $payloadRepository['name'] ?? '';
+                $repositoryUrl = $payloadRepository['html_url'] ?? '';
+                $branchUrl = !empty($repositoryUrl) && !empty($branch) ? $repositoryUrl . "/src/branch/" . $branch : '';
+                $pullRequestNumber = $payload['number'] ?? '';
+                $action = $payload['action'] ?? '';
+                $owner = $payloadRepositoryOwner['login'] ?? '';
+                $authorUrl = $payloadSender['html_url'] ?? '';
+                $authorAvatarUrl = $payloadPullRequestUser['avatar_url'] ?? '';
+                $commitHash = $payloadPullRequestHead['sha'] ?? '';
+                $headCommitUrl = $repositoryUrl ? $repositoryUrl . "/commit/" . $commitHash : '';
+
+                // Check if PR is from a fork (external)
+                $headRepoFullName = $payloadPullRequestHeadRepo['full_name'] ?? '';
+                $baseRepoFullName = $payloadRepository['full_name'] ?? '';
+                $external = !empty($headRepoFullName) && !empty($baseRepoFullName) && $headRepoFullName !== $baseRepoFullName;
+
+                return [
+                    'branch' => $branch,
+                    'branchUrl' => $branchUrl,
+                    'repositoryId' => $repositoryId,
+                    'repositoryName' => $repositoryName,
+                    'repositoryUrl' => $repositoryUrl,
+                    'installationId' => '',  // Gitea doesn't have installations
+                    'commitHash' => $commitHash,
+                    'owner' => $owner,
+                    'authorUrl' => $authorUrl,
+                    'authorAvatarUrl' => $authorAvatarUrl,
+                    'headCommitUrl' => $headCommitUrl,
+                    'external' => $external,
+                    'pullRequestNumber' => $pullRequestNumber,
+                    'action' => $action,
+                ];
+        }
+
+        return [];
     }
 
+    /**
+     * Validate webhook event
+     *
+     * @param string $payload Raw body of HTTP request
+     * @param string $signature Signature provided by Gitea in X-Gitea-Signature header
+     * @param string $signatureKey Webhook secret configured on Gitea
+     * @return bool
+     */
     public function validateWebhookEvent(string $payload, string $signature, string $signatureKey): bool
     {
-        throw new Exception("Not implemented yet");
+        return hash_equals($signature, hash_hmac('sha256', $payload, $signatureKey));
     }
 }

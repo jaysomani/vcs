@@ -4,6 +4,7 @@ namespace Utopia\Tests;
 
 use Exception;
 use PHPUnit\Framework\TestCase;
+use Utopia\Fetch\Client;
 use Utopia\System\System;
 use Utopia\VCS\Adapter\Git;
 use Utopia\VCS\Adapter\Git\GitHub;
@@ -25,8 +26,6 @@ abstract class Base extends TestCase
 
     abstract public function testGenerateCloneCommandWithCommitHash(): void;
 
-    abstract public function testGetEvent(): void;
-
     abstract public function testGetRepositoryName(): void;
 
     abstract public function testGetComment(): void;
@@ -34,6 +33,59 @@ abstract class Base extends TestCase
     abstract public function testGetPullRequest(): void;
 
     abstract public function testGetRepositoryTree(): void;
+
+    /** @return array<mixed> */
+    protected function getLastWebhookRequest(): array
+    {
+        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+
+        $client = new Client();
+        $response = $client->fetch(
+            url: "{$catcherUrl}/__last_request__",
+            method: 'GET'
+        );
+
+        if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            return [];
+        }
+
+        $body = $response->text();
+
+        if (empty($body)) {
+            return [];
+        }
+
+        return json_decode($body, true) ?? [];
+    }
+
+    protected function assertEventually(callable $probe, int $timeoutMs = 15000, int $waitMs = 500): void
+    {
+        $start = microtime(true) * 1000;
+        $lastException = null;
+
+        while ((microtime(true) * 1000 - $start) < $timeoutMs) {
+            try {
+                $probe();
+                return;
+            } catch (\Throwable $e) {
+                $lastException = $e;
+                usleep($waitMs * 1000);
+            }
+        }
+
+        throw $lastException ?? new \Exception('assertEventually timed out');
+    }
+
+    protected function deleteLastWebhookRequest(): void
+    {
+        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+
+        $client = new Client();
+        $client->fetch(
+            url: "{$catcherUrl}/__clear__",
+            method: 'DELETE'
+        );
+    }
 
     public function testGetPullRequestFromBranch(): void
     {
