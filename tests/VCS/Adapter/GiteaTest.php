@@ -1542,7 +1542,7 @@ class GiteaTest extends Base
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'feature-branch');
 
             $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000');
-            $this->vcsAdapter->createWebhook(static::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
+            $this->vcsAdapter->createWebhook(static::$owner, $repositoryName, $catcherUrl . '/webhook', $secret, ['pull_request']);
 
             // Clear after setup so only PR event will arrive
             $this->deleteLastWebhookRequest();
