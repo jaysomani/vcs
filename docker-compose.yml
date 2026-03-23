@@ -8,6 +8,7 @@ services:
       - ./phpunit.xml:/usr/local/src/phpunit.xml
       - gitea-data:/data:ro
       - forgejo-data:/forgejo-data:ro
+      - gogs-data:/gogs-data:ro
     environment:
       - TESTS_GITHUB_PRIVATE_KEY
       - TESTS_GITHUB_APP_IDENTIFIER
@@ -15,6 +16,7 @@ services:
       - TESTS_GITEA_URL=http://gitea:3000
       - TESTS_GITEA_REQUEST_CATCHER_URL=http://request-catcher:5000
       - TESTS_FORGEJO_URL=http://forgejo:3000
+      - TESTS_GOGS_URL=http://gogs:3000
     depends_on:
       gitea:
         condition: service_healthy
@@ -23,6 +25,10 @@ services:
       forgejo:
         condition: service_healthy
       forgejo-bootstrap:
+        condition: service_completed_successfully
+      gogs:
+        condition: service_healthy
+      gogs-bootstrap:
         condition: service_completed_successfully
       request-catcher:                                               
         condition: service_started
@@ -115,6 +121,46 @@ services:
         fi
       "
 
+  gogs:
+    image: gogs/gogs:0.13
+    environment:
+      - GOGS_CUSTOM=/data/gogs
+    volumes:
+      - gogs-data:/data
+      - ./tests/resources/gogs-custom/conf/app.ini:/data/gogs/conf/app.ini
+    ports:
+      - "3002:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  gogs-bootstrap:
+    image: gogs/gogs:0.13
+    volumes:
+      - gogs-data:/data
+    depends_on:
+      gogs:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    environment:
+      - GOGS_ADMIN_USERNAME=${GOGS_ADMIN_USERNAME:-utopia}
+      - GOGS_ADMIN_PASSWORD=${GOGS_ADMIN_PASSWORD:-password}
+      - GOGS_ADMIN_EMAIL=${GOGS_ADMIN_EMAIL:-utopia@example.com}
+    command: >
+      -c "
+        su git -c \"/opt/gogs/gogs admin create-user --name=$$GOGS_ADMIN_USERNAME --password=$$GOGS_ADMIN_PASSWORD --email=$$GOGS_ADMIN_EMAIL --admin\" || true &&
+        if [ ! -f /data/gogs/token.txt ]; then
+          apk add --no-cache curl jq &&
+          TOKEN=$$(curl -s -X POST http://gogs:3000/api/v1/users/$$GOGS_ADMIN_USERNAME/tokens -H 'Content-Type: application/json' -d '{\"name\":\"bootstrap-token\"}' -u $$GOGS_ADMIN_USERNAME:$$GOGS_ADMIN_PASSWORD | jq -r '.sha1') &&
+          mkdir -p /data/gogs &&
+          echo $$TOKEN > /data/gogs/token.txt;
+        fi
+      "
+
 volumes:
   gitea-data:
   forgejo-data:
+  gogs-data:
