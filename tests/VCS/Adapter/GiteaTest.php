@@ -201,6 +201,11 @@ class GiteaTest extends Base
         $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
+    public function testHasAccessToAllRepositories(): void
+    {
+        $this->assertTrue($this->vcsAdapter->hasAccessToAllRepositories());
+    }
+
     public function testGetRepositoryTreeWithSlashInBranchName(): void
     {
         $repositoryName = 'test-branch-with-slash-' . \uniqid();
@@ -878,7 +883,7 @@ class GiteaTest extends Base
 
         try {
             // Search without filter - should return all
-            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10);
+            $result = $this->vcsAdapter->searchRepositories(self::$owner, 1, 10);
 
             $this->assertIsArray($result);
             $this->assertArrayHasKey('items', $result);
@@ -886,7 +891,7 @@ class GiteaTest extends Base
             $this->assertGreaterThanOrEqual(3, $result['total']);
 
             // Search with filter
-            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10, 'test-search');
+            $result = $this->vcsAdapter->searchRepositories(self::$owner, 1, 10, 'test-search');
 
             $this->assertIsArray($result);
             $this->assertGreaterThanOrEqual(2, $result['total']);
@@ -911,15 +916,15 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(self::$owner, $repo2, false);
 
         try {
-            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 1, 'test-pagination');
+            $result = $this->vcsAdapter->searchRepositories(self::$owner, 1, 1, 'test-pagination');
 
             $this->assertSame(1, count($result['items']));
             $this->assertGreaterThanOrEqual(2, $result['total']);
 
-            $result2 = $this->vcsAdapter->searchRepositories('', self::$owner, 2, 1, 'test-pagination');
+            $result2 = $this->vcsAdapter->searchRepositories(self::$owner, 2, 1, 'test-pagination');
             $this->assertSame(1, count($result2['items']));
 
-            $result20 = $this->vcsAdapter->searchRepositories('', self::$owner, 20, 1, 'test-pagination');
+            $result20 = $this->vcsAdapter->searchRepositories(self::$owner, 20, 1, 'test-pagination');
             $this->assertIsArray($result20);
             $this->assertEmpty($result20['items']);
 
@@ -931,7 +936,7 @@ class GiteaTest extends Base
 
     public function testSearchRepositoriesNoResults(): void
     {
-        $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10, 'nonexistent-repo-xyz-' . \uniqid());
+        $result = $this->vcsAdapter->searchRepositories(self::$owner, 1, 10, 'nonexistent-repo-xyz-' . \uniqid());
 
         $this->assertIsArray($result);
         $this->assertEmpty($result['items']);
@@ -940,7 +945,7 @@ class GiteaTest extends Base
 
     public function testSearchRepositoriesInvalidOwner(): void
     {
-        $result = $this->vcsAdapter->searchRepositories('', 'nonexistent-owner-' . \uniqid(), 1, 10);
+        $result = $this->vcsAdapter->searchRepositories('nonexistent-owner-' . \uniqid(), 1, 10);
 
         $this->assertIsArray($result);
         $this->assertEmpty($result['items']);

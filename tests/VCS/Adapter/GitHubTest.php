@@ -181,6 +181,11 @@ class GitHubTest extends Base
         $this->assertNotEmpty($result);
     }
 
+    public function testHasAccessToAllRepositories(): void
+    {
+        $this->assertTrue($this->vcsAdapter->hasAccessToAllRepositories());
+    }
+
     public function testGetInstallationRepository(): void
     {
         $repositoryName = 'astro-starter';
