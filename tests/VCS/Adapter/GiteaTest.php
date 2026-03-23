@@ -13,6 +13,7 @@ class GiteaTest extends Base
 {
     protected static string $accessToken = '';
     protected static string $owner = '';
+    protected static string $defaultBranch = 'main';
 
     protected string $webhookEventHeader = 'X-Gitea-Event';
     protected string $webhookSignatureHeader = 'X-Gitea-Signature';
@@ -110,7 +111,7 @@ class GiteaTest extends Base
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'comment-test', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'comment-test', static::$defaultBranch);
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test', 'Add test file', 'comment-test');
 
             $pr = $this->vcsAdapter->createPullRequest(
@@ -118,7 +119,7 @@ class GiteaTest extends Base
                 $repositoryName,
                 'Comment Test PR',
                 'comment-test',
-                'main'
+                static::$defaultBranch
             );
 
             $prNumber = $pr['number'] ?? 0;
@@ -151,7 +152,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', static::$defaultBranch);
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
 
         // Create PR
@@ -160,7 +161,7 @@ class GiteaTest extends Base
             $repositoryName,
             'Test PR',
             'test-branch',
-            'main'
+            static::$defaultBranch
         );
 
         $prNumber = $pr['number'] ?? 0;
@@ -216,7 +217,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature/test-branch', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature/test-branch', static::$defaultBranch);
 
         $tree = $this->vcsAdapter->getRepositoryTree(static::$owner, $repositoryName, 'feature/test-branch');
 
@@ -451,7 +452,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-branch', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'feature content', 'Add feature', 'feature-branch');
 
         $pr = $this->vcsAdapter->createPullRequest(
@@ -459,7 +460,7 @@ class GiteaTest extends Base
             $repositoryName,
             'Test PR',
             'feature-branch',
-            'main',
+            static::$defaultBranch,
             'Test PR description'
         );
 
@@ -626,7 +627,7 @@ class GiteaTest extends Base
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', static::$defaultBranch);
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
 
             // Create PR
@@ -635,7 +636,7 @@ class GiteaTest extends Base
                 $repositoryName,
                 'Test PR',
                 'test-branch',
-                'main'
+                static::$defaultBranch
             );
 
             $prNumber = $pr['number'] ?? 0;
@@ -1239,7 +1240,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'my-feature', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'my-feature', static::$defaultBranch);
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'my-feature');
 
         // Create PR
@@ -1248,7 +1249,7 @@ class GiteaTest extends Base
             $repositoryName,
             'Feature PR',
             'my-feature',
-            'main'
+            static::$defaultBranch
         );
 
         $this->assertArrayHasKey('number', $pr);
@@ -1272,7 +1273,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'lonely-branch', 'main');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'lonely-branch', static::$defaultBranch);
 
         // Don't create a PR - just test the method
         $result = $this->vcsAdapter->getPullRequestFromBranch(static::$owner, $repositoryName, 'lonely-branch');
@@ -1290,7 +1291,7 @@ class GiteaTest extends Base
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'test-branch', static::$defaultBranch);
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
 
             // Create PR
@@ -1299,7 +1300,7 @@ class GiteaTest extends Base
                 $repositoryName,
                 'Test PR',
                 'test-branch',
-                'main'
+                static::$defaultBranch
             );
 
             $prNumber = $pr['number'] ?? 0;
@@ -1348,7 +1349,7 @@ class GiteaTest extends Base
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Main');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature', static::$defaultBranch);
 
             // Create file on specific branch
             $result = $this->vcsAdapter->createFile(
@@ -1385,8 +1386,8 @@ class GiteaTest extends Base
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
 
             // Create additional branches
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-1', 'main');
-            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-2', 'main');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-1', static::$defaultBranch);
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-2', static::$defaultBranch);
 
             $branches = [];
             $maxAttempts = 10;
@@ -1402,7 +1403,7 @@ class GiteaTest extends Base
 
             $this->assertIsArray($branches);
             $this->assertNotEmpty($branches);
-            $this->assertContains('main', $branches);
+            $this->assertContains(static::$defaultBranch, $branches);
             $this->assertContains('feature-1', $branches);
             $this->assertContains('feature-2', $branches);
             $this->assertGreaterThanOrEqual(3, count($branches));
