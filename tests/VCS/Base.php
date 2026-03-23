@@ -103,8 +103,7 @@ abstract class Base extends TestCase
 
     public function testSearchRepositories(): void
     {
-        $installationId = System::getEnv('TESTS_GITHUB_INSTALLATION_ID') ?? '';
-        ['items' => $repos, 'total' => $total] = $this->vcsAdapter->searchRepositories($installationId, 'test-kh', 1, 2);
+        ['items' => $repos, 'total' => $total] = $this->vcsAdapter->searchRepositories('test-kh', 1, 2);
         $this->assertCount(2, $repos);
         $this->assertSame(6, $total);
     }

@@ -186,12 +186,11 @@ class GitHub extends Git
         $url = '/app/installations/' . $this->installationId;
         $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->jwtToken"]);
         $responseBody = $response['body'] ?? [];
-        return $responseBody['repository_selection'] ?? 'all';
+        return $responseBody['repository_selection'] ?? 'selected';
     }
 
     /**
      * Search repositories for GitHub App
-     * @param string $installationId ID of the installation
      * @param string $owner Name of user or org
      * @param int $page page number
      * @param int $per_page number of results per page
