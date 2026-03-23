@@ -27,7 +27,7 @@ class GiteaTest extends Base
         }
 
         $adapter = new Gitea(new Cache(new None()));
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000') ?? '';
+        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000');
 
         $adapter->initializeVariables(
             installationId: '',
