@@ -31,7 +31,7 @@ class GiteaTest extends Base
         }
 
         $adapter = new Gitea(new Cache(new None()));
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000') ?? '';
+        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000');
 
         $adapter->initializeVariables(
             installationId: '',
@@ -1345,7 +1345,7 @@ class GiteaTest extends Base
     public function testCreateFileOnBranch(): void
     {
         $repositoryName = 'test-create-file-branch-'.\uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
+        $res = $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Main');
@@ -1484,7 +1484,7 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         try {
-            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000');
             $this->deleteLastWebhookRequest();
             $this->vcsAdapter->createWebhook(static::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
 
@@ -1541,7 +1541,7 @@ class GiteaTest extends Base
             $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'feature-branch');
 
-            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000');
             $this->vcsAdapter->createWebhook(static::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
 
             // Clear after setup so only PR event will arrive

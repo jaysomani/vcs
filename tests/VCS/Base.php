@@ -37,7 +37,7 @@ abstract class Base extends TestCase
     /** @return array<mixed> */
     protected function getLastWebhookRequest(): array
     {
-        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000');
 
         $client = new Client();
         $response = $client->fetch(
@@ -78,7 +78,7 @@ abstract class Base extends TestCase
 
     protected function deleteLastWebhookRequest(): void
     {
-        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000');
 
         $client = new Client();
         $client->fetch(

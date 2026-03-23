@@ -30,7 +30,7 @@ class ForgejoTest extends GiteaTest
         }
 
         $adapter = new Forgejo(new Cache(new None()));
-        $forgejoUrl = System::getEnv('TESTS_FORGEJO_URL', 'http://forgejo:3000') ?? '';
+        $forgejoUrl = System::getEnv('TESTS_FORGEJO_URL', 'http://forgejo:3000');
 
         $adapter->initializeVariables(
             installationId: '',
