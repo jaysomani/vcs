@@ -14,6 +14,9 @@ class GiteaTest extends Base
     protected static string $accessToken = '';
     protected static string $owner = '';
 
+    protected string $webhookEventHeader = 'X-Gitea-Event';
+    protected string $webhookSignatureHeader = 'X-Gitea-Signature';
+
     protected function createVCSAdapter(): Git
     {
         return new Gitea(new Cache(new None()));
@@ -1498,14 +1501,14 @@ class GiteaTest extends Base
                 $webhookData = $this->getLastWebhookRequest();
                 $this->assertNotEmpty($webhookData, 'No webhook received');
                 $this->assertNotEmpty($webhookData['data'] ?? '', 'Webhook payload is empty');
-                $this->assertSame('push', $webhookData['headers']['X-Gitea-Event'] ?? '', 'Expected push event');
+                $this->assertSame('push', $webhookData['headers'][$this->webhookEventHeader] ?? '', 'Expected push event');
             }, 15000, 500);
 
             $payload = $webhookData['data'];
             $headers = $webhookData['headers'] ?? [];
-            $signature = $headers['X-Gitea-Signature'] ?? '';
+            $signature = $headers[$this->webhookSignatureHeader] ?? '';
 
-            $this->assertNotEmpty($signature, 'Missing X-Gitea-Signature header');
+            $this->assertNotEmpty($signature, 'Missing ' . $this->webhookSignatureHeader . ' header');
             $this->assertTrue(
                 $this->vcsAdapter->validateWebhookEvent($payload, $signature, $secret),
                 'Webhook signature validation failed'
@@ -1557,14 +1560,14 @@ class GiteaTest extends Base
                 $webhookData = $this->getLastWebhookRequest();
                 $this->assertNotEmpty($webhookData, 'No webhook received');
                 $this->assertNotEmpty($webhookData['data'] ?? '', 'Webhook payload is empty');
-                $this->assertSame('pull_request', $webhookData['headers']['X-Gitea-Event'] ?? '', 'Expected pull_request event');
+                $this->assertSame('pull_request', $webhookData['headers'][$this->webhookEventHeader] ?? '', 'Expected pull_request event');
             }, 15000, 500);
 
             $payload = $webhookData['data'];
             $headers = $webhookData['headers'] ?? [];
-            $signature = $headers['X-Gitea-Signature'] ?? '';
+            $signature = $headers[$this->webhookSignatureHeader] ?? '';
 
-            $this->assertNotEmpty($signature, 'Missing X-Gitea-Signature header');
+            $this->assertNotEmpty($signature, 'Missing ' . $this->webhookSignatureHeader . ' header');
             $this->assertTrue(
                 $this->vcsAdapter->validateWebhookEvent($payload, $signature, $secret),
                 'Webhook signature validation failed'

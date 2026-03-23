@@ -23,7 +23,8 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "Utopia\\Tests\\": "tests/VCS"
+      "Utopia\\Tests\\": "tests/VCS",
+      "Utopia\\Tests\\VCS\\": "tests/VCS"
     }
   },
   "require": {
