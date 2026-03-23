@@ -1227,9 +1227,9 @@ class GiteaTest extends Base
 
     public function testGetInstallationRepository(): void
     {
-        // This method is not applicable for Gitea
+        // This method is not applicable for this adapter
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('not applicable for this adapter');
 
         $this->vcsAdapter->getInstallationRepository('any-repo-name');
     }

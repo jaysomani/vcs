@@ -77,12 +77,12 @@ class Gitea extends Git
     /**
      * Generate Access Token
      *
-     * Note: This method is required by the Adapter interface but is not used for Gitea.
+     * Note: This method is required by the Adapter interface but is not used for this adapter.
      * Gitea uses OAuth2 tokens that are provided directly via initializeVariables().
      */
     protected function generateAccessToken(string $privateKey, string $appId): void
     {
-        // Not applicable for Gitea - OAuth2 tokens are passed directly
+        // Not applicable for this adapter - OAuth2 tokens are passed directly
         return;
     }
 
@@ -224,7 +224,7 @@ class Gitea extends Git
      */
     public function getInstallationRepository(string $repositoryName): array
     {
-        throw new Exception("getInstallationRepository is not applicable for Gitea - use getRepository() with owner and repo name instead");
+        throw new Exception("getInstallationRepository is not applicable for this adapter - use getRepository() with owner and repo name instead");
     }
 
     public function getRepository(string $owner, string $repositoryName): array
