@@ -1037,13 +1037,6 @@ class Gitea extends Git
                 $baseRepoFullName = $payloadRepository['full_name'] ?? '';
                 $external = !empty($headRepoFullName) && !empty($baseRepoFullName) && $headRepoFullName !== $baseRepoFullName;
 
-                try {
-                    $prFiles = $this->getPullRequestFiles($owner, $repositoryName, (int)$pullRequestNumber);
-                    $affectedFiles = array_column($prFiles, 'filename');
-                } catch (Exception $e) {
-                    $affectedFiles = [];
-                }
-
                 return [
                     'branch' => $branch,
                     'branchUrl' => $branchUrl,
@@ -1059,7 +1052,6 @@ class Gitea extends Git
                     'external' => $external,
                     'pullRequestNumber' => $pullRequestNumber,
                     'action' => $action,
-                    'affectedFiles' => $affectedFiles,
                 ];
         }
 

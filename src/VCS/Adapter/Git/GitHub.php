@@ -989,14 +989,6 @@ class GitHub extends Git
                 $baseLogin = $payloadPullRequestBaseUser['login'] ?? '';
                 $external = $headLogin !== $baseLogin;
 
-                try {
-                    $prFiles = $this->getPullRequestFiles($owner, $repositoryName, (int)$pullRequestNumber);
-                    $affectedFiles = array_column($prFiles, 'filename');
-                } catch (Exception $e) {
-                    // In case of any error while fetching pull request files, we will return an empty list of affected files.
-                    $affectedFiles = [];
-                }
-
                 return [
                     'branch' => $branch,
                     'branchUrl' => $branchUrl,
@@ -1012,7 +1004,6 @@ class GitHub extends Git
                     'external' => $external,
                     'pullRequestNumber' => $pullRequestNumber,
                     'action' => $action,
-                    'affectedFiles' => $affectedFiles,
                 ];
             case 'installation':
             case 'installation_repositories':

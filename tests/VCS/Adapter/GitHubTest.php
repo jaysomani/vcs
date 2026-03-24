@@ -109,7 +109,7 @@ class GitHubTest extends Base
             "pull_request": {
                 "id": 1303283688,
                 "state": "open",
-                "html_url": "https://github.com/vermakhushboo/basic-js-crud/pull/1",
+                "html_url": "https://github.com/vermakhushboo/g4-node-function/pull/17",
                 "head": {
                     "ref": "test",
                     "sha": "a27dbe54b17032ee35a16c24bac151e5c2b33328",
@@ -131,11 +131,11 @@ class GitHubTest extends Base
             },
             "repository": {
                 "id": 3498,
-                "name": "basic-js-crud",
+                "name": "functions-example",
                 "owner": {
                     "login": "vermakhushboo"
                 },
-                "html_url": "https://github.com/vermakhushboo/basic-js-crud"
+                "html_url": "https://github.com/vermakhushboo/g4-node-function"
             },
             "installation": {
                 "id": 9876
@@ -149,8 +149,6 @@ class GitHubTest extends Base
 
         $this->assertSame('opened', $result['action']);
         $this->assertSame(1, $result['pullRequestNumber']);
-        $this->assertCount(1, $result['affectedFiles']);
-        $this->assertContains('README.md', $result['affectedFiles']);
     }
 
     public function testGetEventInstallation(): void

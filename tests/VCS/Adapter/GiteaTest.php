@@ -923,44 +923,49 @@ class GiteaTest extends Base
 
     public function testGetEventPullRequest(): void
     {
-        $repositoryName = 'test-get-event-pull-request-' . \uniqid();
-        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
-
-        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
-        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'feature content', 'Add feature', 'feature-branch');
-
-        $pr = $this->vcsAdapter->createPullRequest(self::$owner, $repositoryName, 'Test PR', 'feature-branch', static::$defaultBranch);
-        $prNumber = $pr['number'] ?? 0;
-        $commitHash = $pr['head']['sha'] ?? 'abc123';
-
-        $fullName = self::$owner . '/' . $repositoryName;
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000');
-
         $payload = json_encode([
             'action' => 'opened',
-            'number' => $prNumber,
+            'number' => 42,
             'pull_request' => [
+                'id' => 1,
+                'number' => 42,
+                'state' => 'open',
+                'title' => 'Test PR',
                 'head' => [
                     'ref' => 'feature-branch',
-                    'sha' => $commitHash,
-                    'repo' => ['full_name' => $fullName],
-                    'user' => ['login' => self::$owner],
+                    'sha' => 'abc123',
+                    'repo' => [
+                        'full_name' => 'test-owner/test-repo',
+                    ],
+                    'user' => [
+                        'login' => 'pr-author',
+                    ],
                 ],
                 'base' => [
                     'ref' => static::$defaultBranch,
-                    'user' => ['login' => self::$owner],
+                    'sha' => 'def456',
+                    'user' => [
+                        'login' => 'base-owner',
+                    ],
                 ],
-                'user' => ['login' => self::$owner, 'avatar_url' => "{$giteaUrl}/avatars/" . self::$owner],
+                'user' => [
+                    'login' => 'pr-author',
+                    'avatar_url' => 'http://gitea:3000/avatars/pr-author',
+                ],
             ],
             'repository' => [
                 'id' => 123,
-                'name' => $repositoryName,
-                'full_name' => $fullName,
-                'html_url' => "{$giteaUrl}/" . self::$owner . "/{$repositoryName}",
-                'owner' => ['login' => self::$owner],
+                'name' => 'test-repo',
+                'full_name' => 'test-owner/test-repo',
+                'html_url' => 'http://gitea:3000/test-owner/test-repo',
+                'owner' => [
+                    'login' => 'test-owner',
+                ],
             ],
-            'sender' => ['html_url' => "{$giteaUrl}/" . self::$owner],
+            'sender' => [
+                'login' => 'sender-user',
+                'html_url' => 'http://gitea:3000/sender-user',
+            ],
         ]);
 
         if ($payload === false) {
@@ -977,56 +982,46 @@ class GiteaTest extends Base
         $this->assertArrayHasKey('external', $result);
 
         $this->assertSame('feature-branch', $result['branch']);
-        $this->assertSame($prNumber, $result['pullRequestNumber']);
+        $this->assertSame(42, $result['pullRequestNumber']);
         $this->assertSame('opened', $result['action']);
-        $this->assertSame($repositoryName, $result['repositoryName']);
-        $this->assertSame(self::$owner, $result['owner']);
+        $this->assertSame('abc123', $result['commitHash']);
+        $this->assertSame('test-repo', $result['repositoryName']);
+        $this->assertSame('test-owner', $result['owner']);
         $this->assertFalse($result['external']);
-        $this->assertCount(1, $result['affectedFiles']);
-        $this->assertContains('feature.txt', $result['affectedFiles']);
-
-        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
     public function testGetEventPullRequestExternal(): void
     {
-        $repositoryName = 'test-get-event-pr-external-' . \uniqid();
-        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
-
-        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
-        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'feature content', 'Add feature', 'feature-branch');
-
-        $pr = $this->vcsAdapter->createPullRequest(self::$owner, $repositoryName, 'External PR', 'feature-branch', static::$defaultBranch);
-        $prNumber = $pr['number'] ?? 0;
-        $commitHash = $pr['head']['sha'] ?? 'abc123';
-
-        $giteaUrl = System::getEnv('TESTS_GITEA_URL', 'http://gitea:3000');
-
         $payload = json_encode([
             'action' => 'opened',
-            'number' => $prNumber,
+            'number' => 42,
             'pull_request' => [
                 'head' => [
                     'ref' => 'feature-branch',
-                    'sha' => $commitHash,
-                    'repo' => ['full_name' => 'external-user/' . $repositoryName],
-                    'user' => ['login' => 'external-user'],
+                    'sha' => 'abc123',
+                    'repo' => [
+                        'full_name' => 'external-user/forked-repo',
+                    ],
                 ],
                 'base' => [
                     'ref' => static::$defaultBranch,
-                    'user' => ['login' => self::$owner],
                 ],
-                'user' => ['avatar_url' => "{$giteaUrl}/avatars/external-user"],
+                'user' => [
+                    'avatar_url' => 'http://gitea:3000/avatars/external',
+                ],
             ],
             'repository' => [
                 'id' => 123,
-                'name' => $repositoryName,
-                'full_name' => self::$owner . '/' . $repositoryName,
-                'html_url' => "{$giteaUrl}/" . self::$owner . "/{$repositoryName}",
-                'owner' => ['login' => self::$owner],
+                'name' => 'test-repo',
+                'full_name' => 'test-owner/test-repo',
+                'html_url' => 'http://gitea:3000/test-owner/test-repo',
+                'owner' => [
+                    'login' => 'test-owner',
+                ],
             ],
-            'sender' => ['html_url' => "{$giteaUrl}/external-user"],
+            'sender' => [
+                'html_url' => 'http://gitea:3000/external-user',
+            ],
         ]);
 
         if ($payload === false) {
@@ -1036,10 +1031,6 @@ class GiteaTest extends Base
         $result = $this->vcsAdapter->getEvent('pull_request', $payload);
 
         $this->assertTrue($result['external']);
-        $this->assertCount(1, $result['affectedFiles']);
-        $this->assertContains('feature.txt', $result['affectedFiles']);
-
-        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
 
     public function testValidateWebhookEvent(): void
