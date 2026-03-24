@@ -139,6 +139,7 @@ services:
     image: gogs/gogs:0.14
     volumes:
       - gogs-data:/data
+      - ./resources/gogs/app.ini:/data/gogs/conf/app.ini
     depends_on:
       gogs:
         condition: service_healthy
