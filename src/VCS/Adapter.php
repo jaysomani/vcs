@@ -151,6 +151,16 @@ abstract class Adapter
     abstract public function getPullRequest(string $owner, string $repositoryName, int $pullRequestNumber): array;
 
     /**
+     * Get files changed in a pull request
+     *
+     * @param string $owner Owner name of the repository
+     * @param string $repositoryName Name of the repository
+     * @param int $pullRequestNumber The pull request number
+     * @return array<mixed> List of files changed in the pull request
+     */
+    abstract public function getPullRequestFiles(string $owner, string $repositoryName, int $pullRequestNumber): array;
+
+    /**
      * Add Comment to Pull Request
      *
      * @return string

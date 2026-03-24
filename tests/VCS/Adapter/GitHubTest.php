@@ -355,6 +355,21 @@ class GitHubTest extends Base
         $this->assertSame($repositoryName, $result['base']['repo']['name']);
     }
 
+    public function testGetPullRequestFiles(): void
+    {
+        $owner = 'vermakhushboo';
+        $repositoryName = 'basic-js-crud';
+        $pullRequestNumber = 1;
+
+        $result = $this->vcsAdapter->getPullRequestFiles($owner, $repositoryName, $pullRequestNumber);
+
+        $this->assertIsArray($result);
+        $this->assertNotEmpty($result);
+
+        $filenames = array_column($result, 'filename');
+        $this->assertContains('README.md', $filenames);
+    }
+
     public function testGenerateCloneCommand(): void
     {
         \exec('rm -rf /tmp/clone-branch');
