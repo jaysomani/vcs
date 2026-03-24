@@ -61,11 +61,6 @@ class GogsTest extends GiteaTest
         }
     }
 
-    // Webhook delivery (Gogs queues but does not deliver webhooks in test environment)
-    public function testWebhookPushEvent(): void
-    {
-        $this->markTestSkipped('Gogs webhook delivery not working in test environment');
-    }
 
     // --- Skip tests for unsupported Gogs features ---
 
