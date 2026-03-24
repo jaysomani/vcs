@@ -67,11 +67,6 @@ class GogsTest extends GiteaTest
         $this->markTestSkipped('Gogs webhook delivery not working in test environment');
     }
 
-    public function testCreateFileOnBranch(): void
-    {
-        $this->markTestSkipped('Gogs createFile doesnt seem to work on existing branches.');
-    }
-
     // --- Skip tests for unsupported Gogs features ---
 
     // Pull request API
@@ -110,16 +105,6 @@ class GogsTest extends GiteaTest
     public function testWebhookPullRequestEvent(): void
     {
         $this->markTestSkipped('Gogs does not support pull request API');
-    }
-
-    // Tag creation
-    public function testCreateTag(): void
-    {
-        $this->markTestSkipped('Gogs does not support tag creation via API');
-    }
-    public function testGenerateCloneCommandWithTag(): void
-    {
-        $this->markTestSkipped('Gogs does not support tag creation via API');
     }
 
     // Commit status

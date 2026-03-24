@@ -122,7 +122,7 @@ services:
       "
 
   gogs:
-    image: gogs/gogs:0.13
+    image: gogs/gogs:0.14
     volumes:
       - gogs-data:/data
     ports:

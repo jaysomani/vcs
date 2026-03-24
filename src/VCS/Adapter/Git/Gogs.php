@@ -257,14 +257,25 @@ class Gogs extends Gitea
     /**
      * Create a file in a repository
      *
-     * Gogs uses PUT /repos/{owner}/{repo}/contents/{path}.
-     * For non-default branches we use git CLI, because the Gogs API `branch`
-     * param creates a new branch rather than targeting an existing one.
+     * For the default branch (or when no branch is specified), uses the Gogs
+     * contents API. For non-default branches, uses git CLI because the Gogs
+     * API returns 500 when targeting an existing non-default branch.
      *
      * @return array<mixed>
      */
     public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file', string $branch = ''): array
     {
+        if (!empty($branch)) {
+            // Check if branch is the default branch
+            $url = "/repos/{$owner}/{$repositoryName}";
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+            $defaultBranch = $response['body']['default_branch'] ?? 'master';
+
+            if ($branch !== $defaultBranch) {
+                return $this->createFileViaCli($owner, $repositoryName, $filepath, $content, $message, $branch);
+            }
+        }
+
         $url = "/repos/{$owner}/{$repositoryName}/contents/{$filepath}";
 
         $response = $this->call(
@@ -274,7 +285,6 @@ class Gogs extends Gitea
             [
                 'content' => base64_encode($content),
                 'message' => $message,
-                'branch' => $branch
             ]
         );
 
@@ -285,6 +295,33 @@ class Gogs extends Gitea
         }
 
         return $response['body'] ?? [];
+    }
+
+    /**
+     * Create a file on a non-default branch using git CLI.
+     *
+     * @return array<mixed>
+     */
+    private function createFileViaCli(string $owner, string $repositoryName, string $filepath, string $content, string $message, string $branch): array
+    {
+        $dir = $this->gitClone($owner, $repositoryName, $branch);
+
+        try {
+            $fullPath = $dir . '/' . $filepath;
+            $dirPath = dirname($fullPath);
+            if (!is_dir($dirPath)) {
+                mkdir($dirPath, 0777, true);
+            }
+            file_put_contents($fullPath, $content);
+
+            $this->exec("git -C {$dir} add " . escapeshellarg($filepath));
+            $this->exec("git -C {$dir} commit -m " . escapeshellarg($message));
+            $this->exec("git -C {$dir} push origin " . escapeshellarg($branch));
+        } finally {
+            $this->exec("rm -rf {$dir}");
+        }
+
+        return ['content' => ['path' => $filepath]];
     }
 
     /**
@@ -364,13 +401,32 @@ class Gogs extends Gitea
     /**
      * Create a tag
      *
-     * Gogs does not support tag creation via API.
+     * Gogs does not support tag creation via API, so we use git CLI.
      *
      * @return array<mixed>
      */
     public function createTag(string $owner, string $repositoryName, string $tagName, string $target, string $message = ''): array
     {
-        throw new Exception("Tag creation via API is not supported by Gogs");
+        $dir = $this->gitClone($owner, $repositoryName);
+
+        try {
+            $this->exec("git -C {$dir} fetch origin " . escapeshellarg($target));
+            if (!empty($message)) {
+                $this->exec("git -C {$dir} tag -a " . escapeshellarg($tagName) . " " . escapeshellarg($target) . " -m " . escapeshellarg($message));
+            } else {
+                $this->exec("git -C {$dir} tag " . escapeshellarg($tagName) . " " . escapeshellarg($target));
+            }
+            $this->exec("git -C {$dir} push origin " . escapeshellarg($tagName));
+        } finally {
+            $this->exec("rm -rf {$dir}");
+        }
+
+        return [
+            'name' => $tagName,
+            'commit' => [
+                'sha' => $target,
+            ],
+        ];
     }
 
     /**
