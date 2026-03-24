@@ -1,6 +1,6 @@
 <?php
 
-namespace Utopia\Tests\VCS\Adapter;
+namespace Utopia\Tests\Adapter;
 
 use Utopia\Cache\Adapter\None;
 use Utopia\Cache\Cache;
@@ -14,6 +14,10 @@ class GiteaTest extends Base
     protected static string $accessToken = '';
     protected static string $owner = '';
     protected static string $defaultBranch = 'main';
+
+    protected string $webhookEventHeader = 'X-Gitea-Event';
+    protected string $webhookSignatureHeader = 'X-Gitea-Signature';
+    protected string $avatarDomain = 'gravatar.com';
 
     protected function createVCSAdapter(): Git
     {
@@ -45,7 +49,7 @@ class GiteaTest extends Base
         $this->vcsAdapter = $adapter;
     }
 
-    private function setupGitea(): void
+    protected function setupGitea(): void
     {
         $tokenFile = '/data/gitea/token.txt';
 
@@ -778,7 +782,7 @@ class GiteaTest extends Base
         $this->assertSame($commitHash, $result['commitHash']);
         $this->assertSame('utopia', $result['commitAuthor']);
         $this->assertStringStartsWith($customMessage, $result['commitMessage']);
-        $this->assertStringContainsString('gravatar.com', $result['commitAuthorAvatar']);
+        $this->assertStringContainsString($this->avatarDomain, $result['commitAuthorAvatar']);
         $this->assertNotEmpty($result['commitUrl']);
 
         $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
@@ -806,7 +810,7 @@ class GiteaTest extends Base
         $this->assertNotEmpty($commit1['commitHash']);
         $this->assertSame('utopia', $commit1['commitAuthor']);
         $this->assertStringStartsWith($firstMessage, $commit1['commitMessage']);
-        $this->assertStringContainsString('gravatar.com', $commit1['commitAuthorAvatar']);
+        $this->assertStringContainsString($this->avatarDomain, $commit1['commitAuthorAvatar']);
         $this->assertNotEmpty($commit1['commitUrl']);
 
         $commit1Hash = $commit1['commitHash'];
@@ -1530,14 +1534,14 @@ class GiteaTest extends Base
                 $webhookData = $this->getLastWebhookRequest();
                 $this->assertNotEmpty($webhookData, 'No webhook received');
                 $this->assertNotEmpty($webhookData['data'] ?? '', 'Webhook payload is empty');
-                $this->assertSame('push', $webhookData['headers']['X-Gitea-Event'] ?? '', 'Expected push event');
+                $this->assertSame('push', $webhookData['headers'][$this->webhookEventHeader] ?? '', 'Expected push event');
             }, 15000, 500);
 
             $payload = $webhookData['data'];
             $headers = $webhookData['headers'] ?? [];
-            $signature = $headers['X-Gitea-Signature'] ?? '';
+            $signature = $headers[$this->webhookSignatureHeader] ?? '';
 
-            $this->assertNotEmpty($signature, 'Missing X-Gitea-Signature header');
+            $this->assertNotEmpty($signature, 'Missing ' . $this->webhookSignatureHeader . ' header');
             $this->assertTrue(
                 $this->vcsAdapter->validateWebhookEvent($payload, $signature, $secret),
                 'Webhook signature validation failed'
@@ -1569,7 +1573,7 @@ class GiteaTest extends Base
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'feature-branch');
 
             $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000');
-            $this->vcsAdapter->createWebhook(static::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
+            $this->vcsAdapter->createWebhook(static::$owner, $repositoryName, $catcherUrl . '/webhook', $secret, ['pull_request']);
 
             // Clear after setup so only PR event will arrive
             $this->deleteLastWebhookRequest();
@@ -1589,14 +1593,14 @@ class GiteaTest extends Base
                 $webhookData = $this->getLastWebhookRequest();
                 $this->assertNotEmpty($webhookData, 'No webhook received');
                 $this->assertNotEmpty($webhookData['data'] ?? '', 'Webhook payload is empty');
-                $this->assertSame('pull_request', $webhookData['headers']['X-Gitea-Event'] ?? '', 'Expected pull_request event');
+                $this->assertSame('pull_request', $webhookData['headers'][$this->webhookEventHeader] ?? '', 'Expected pull_request event');
             }, 15000, 500);
 
             $payload = $webhookData['data'];
             $headers = $webhookData['headers'] ?? [];
-            $signature = $headers['X-Gitea-Signature'] ?? '';
+            $signature = $headers[$this->webhookSignatureHeader] ?? '';
 
-            $this->assertNotEmpty($signature, 'Missing X-Gitea-Signature header');
+            $this->assertNotEmpty($signature, 'Missing ' . $this->webhookSignatureHeader . ' header');
             $this->assertTrue(
                 $this->vcsAdapter->validateWebhookEvent($payload, $signature, $secret),
                 'Webhook signature validation failed'

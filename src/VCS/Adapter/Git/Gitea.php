@@ -494,6 +494,11 @@ class Gitea extends Git
         return $responseBody;
     }
 
+    protected function getHookType(): string
+    {
+        return 'gitea';
+    }
+
     /**
      * Create a webhook on a repository
      *
@@ -511,7 +516,7 @@ class Gitea extends Git
             "/repos/{$owner}/{$repositoryName}/hooks",
             ['Authorization' => "token $this->accessToken"],
             [
-                'type' => 'gitea',
+                'type' => $this->getHookType(),
                 'active' => true,
                 'events' => $events,
                 'config' => [

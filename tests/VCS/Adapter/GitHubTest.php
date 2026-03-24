@@ -1,6 +1,6 @@
 <?php
 
-namespace Utopia\Tests\VCS\Adapter;
+namespace Utopia\Tests\Adapter;
 
 use Utopia\Cache\Adapter\None;
 use Utopia\Cache\Cache;
