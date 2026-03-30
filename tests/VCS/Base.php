@@ -32,6 +32,8 @@ abstract class Base extends TestCase
 
     abstract public function testGetPullRequest(): void;
 
+    abstract public function testGetPullRequestFiles(): void;
+
     abstract public function testGetRepositoryTree(): void;
 
     /** @return array<mixed> */

@@ -484,6 +484,37 @@ class GiteaTest extends Base
         $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
     }
 
+    public function testGetPullRequestFiles(): void
+    {
+        $repositoryName = 'test-get-pull-request-files-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
+        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'feature content', 'Add feature', 'feature-branch');
+
+        $pr = $this->vcsAdapter->createPullRequest(
+            self::$owner,
+            $repositoryName,
+            'Test PR Files',
+            'feature-branch',
+            static::$defaultBranch
+        );
+
+        $prNumber = $pr['number'] ?? 0;
+        $this->assertGreaterThan(0, $prNumber);
+
+        $result = $this->vcsAdapter->getPullRequestFiles(self::$owner, $repositoryName, $prNumber);
+
+        $this->assertIsArray($result);
+        $this->assertNotEmpty($result);
+
+        $filenames = array_column($result, 'filename');
+        $this->assertContains('feature.txt', $filenames);
+
+        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+    }
+
     public function testGetPullRequestWithInvalidNumber(): void
     {
         $repositoryName = 'test-get-pull-request-invalid-' . \uniqid();
