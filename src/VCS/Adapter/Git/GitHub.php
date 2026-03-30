@@ -671,6 +671,38 @@ class GitHub extends Git
     }
 
     /**
+     * Get files changed in a pull request
+     *
+     * @return array<mixed> List of files changed in the pull request
+     */
+    public function getPullRequestFiles(string $owner, string $repositoryName, int $pullRequestNumber): array
+    {
+        $allFiles = [];
+        $perPage = 30;
+        $currentPage = 1;
+
+        while (true) {
+            $url = "/repos/{$owner}/{$repositoryName}/pulls/{$pullRequestNumber}/files";
+
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
+                'per_page' => $perPage,
+                'page' => $currentPage,
+            ]);
+
+            $files = $response['body'] ?? [];
+            $allFiles = array_merge($allFiles, $files);
+
+            if (\count($files) < $perPage) {
+                break;
+            }
+
+            $currentPage++;
+        }
+
+        return $allFiles;
+    }
+
+    /**
      * Get latest opened pull request with specific base branch
      * @return array<mixed>
      */
