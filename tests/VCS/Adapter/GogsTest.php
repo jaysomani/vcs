@@ -125,4 +125,9 @@ class GogsTest extends GiteaTest
     {
         $this->markTestSkipped('Gogs does not support repository languages endpoint');
     }
+
+    public function testGetPullRequestFiles(): void
+    {
+        $this->markTestSkipped('Gogs does not support pull request files API');
+    }
 }

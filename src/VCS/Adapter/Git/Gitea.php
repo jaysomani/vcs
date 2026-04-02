@@ -100,7 +100,8 @@ class Gitea extends Git
             'private' => $private,
         ]);
 
-        return $response['body'] ?? [];
+        $body = $response['body'] ?? [];
+        return is_array($body) ? $body : [];
     }
 
     public function createOrganization(string $orgName): string
