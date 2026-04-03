@@ -487,14 +487,14 @@ class GiteaTest extends Base
     public function testGetPullRequestFiles(): void
     {
         $repositoryName = 'test-get-pull-request-files-' . \uniqid();
-        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
-        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
-        $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
-        $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'feature content', 'Add feature', 'feature-branch');
+        $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
+        $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature-branch', static::$defaultBranch);
+        $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'feature content', 'Add feature', 'feature-branch');
 
         $pr = $this->vcsAdapter->createPullRequest(
-            self::$owner,
+            static::$owner,
             $repositoryName,
             'Test PR Files',
             'feature-branch',
@@ -504,7 +504,7 @@ class GiteaTest extends Base
         $prNumber = $pr['number'] ?? 0;
         $this->assertGreaterThan(0, $prNumber);
 
-        $result = $this->vcsAdapter->getPullRequestFiles(self::$owner, $repositoryName, $prNumber);
+        $result = $this->vcsAdapter->getPullRequestFiles(static::$owner, $repositoryName, $prNumber);
 
         $this->assertIsArray($result);
         $this->assertNotEmpty($result);
@@ -512,7 +512,7 @@ class GiteaTest extends Base
         $filenames = array_column($result, 'filename');
         $this->assertContains('feature.txt', $filenames);
 
-        $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
     }
 
     public function testGetPullRequestWithInvalidNumber(): void
@@ -861,7 +861,7 @@ class GiteaTest extends Base
     public function testGetEventPush(): void
     {
         $payload = json_encode([
-            'ref' => 'refs/heads/main',
+            'ref' => 'refs/heads/' . static::$defaultBranch,
             'before' => 'abc123',
             'after' => 'def456',
             'created' => false,
@@ -1376,7 +1376,7 @@ class GiteaTest extends Base
     public function testCreateFileOnBranch(): void
     {
         $repositoryName = 'test-create-file-branch-'.\uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
+        $res = $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Main');
