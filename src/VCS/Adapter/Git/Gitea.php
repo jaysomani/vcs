@@ -101,7 +101,7 @@ class Gitea extends Git
         ]);
 
         return $response['body'] ?? [];
-        return is_array($body) ? $body : [];
+        // return is_array($body) ? $body : [];
     }
 
     public function createOrganization(string $orgName): string
