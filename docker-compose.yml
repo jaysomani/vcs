@@ -9,6 +9,7 @@ services:
       - gitea-data:/data:ro
       - forgejo-data:/forgejo-data:ro
       - gogs-data:/gogs-data:ro
+      - gitlab-data:/gitlab-data:ro
     environment:
       - TESTS_GITHUB_PRIVATE_KEY
       - TESTS_GITHUB_APP_IDENTIFIER
@@ -17,6 +18,7 @@ services:
       - TESTS_GITEA_REQUEST_CATCHER_URL=http://request-catcher:5000
       - TESTS_FORGEJO_URL=http://forgejo:3000
       - TESTS_GOGS_URL=http://gogs:3000
+      - TESTS_GITLAB_URL=http://gitlab:80
     depends_on:
       gitea:
         condition: service_healthy
@@ -29,6 +31,10 @@ services:
       gogs:
         condition: service_healthy
       gogs-bootstrap:
+        condition: service_completed_successfully
+      gitlab:
+        condition: service_healthy
+      gitlab-bootstrap:
         condition: service_completed_successfully
       request-catcher:                                               
         condition: service_started
@@ -172,7 +178,70 @@ services:
           echo $$TOKEN > /data/gogs/token.txt
         fi
 
+  gitlab:
+    image: gitlab/gitlab-ce:18.10.1-ce.0
+    environment:
+      - GITLAB_ROOT_PASSWORD=${GITLAB_ROOT_PASSWORD:-;asiweml@562}
+      - GITLAB_ROOT_EMAIL=${GITLAB_ROOT_EMAIL:-utopia@example.com}
+      - GITLAB_OMNIBUS_CONFIG=gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD']; gitlab_rails['gitlab_signup_enabled'] = false;
+    volumes:
+      - gitlab-data:/var/opt/gitlab
+    ports:
+      - "3003:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+
+  gitlab-bootstrap:
+    image: alpine/curl:8.12.1
+    volumes:
+      - gitlab-data:/gitlab-data
+    depends_on:
+      gitlab:
+        condition: service_healthy
+    environment:
+      - GITLAB_ROOT_PASSWORD=${GITLAB_ROOT_PASSWORD:-;asiweml@562}
+      - GITLAB_OMNIBUS_CONFIG=gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD']; gitlab_rails['gitlab_signup_enabled'] = false; gitlab_rails['allow_local_requests_from_web_hooks_and_services'] = true;
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        if [ -f /gitlab-data/token.txt ]; then exit 0; fi
+
+        apk add --no-cache perl
+
+        echo "Waiting for GitLab to be ready..."
+        sleep 10
+
+        # Use OAuth2 password grant to get access token
+        OAUTH_RESPONSE=$$(curl -s -X POST http://gitlab:80/oauth/token \
+          -d "grant_type=password&username=root&password=$$GITLAB_ROOT_PASSWORD&scope=api")
+        echo "OAuth response: $$OAUTH_RESPONSE"
+
+        OAUTH_TOKEN=$$(echo "$$OAUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+        echo "OAuth token: $$OAUTH_TOKEN"
+
+        if [ -z "$$OAUTH_TOKEN" ]; then echo "Failed to get OAuth token"; exit 1; fi
+
+        # Create PAT using OAuth token
+        PAT_RESPONSE=$$(curl -s -X POST http://gitlab:80/api/v4/users/1/personal_access_tokens \
+          -H "Authorization: Bearer $$OAUTH_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d '{"name":"bootstrap","scopes":["api","read_user","read_repository","write_repository"],"expires_at":"2027-01-01"}')
+        echo "PAT response: $$PAT_RESPONSE"
+
+        TOKEN=$$(echo "$$PAT_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+        echo "Token: $$TOKEN"
+
+        if [ -z "$$TOKEN" ]; then echo "Failed to get token"; exit 1; fi
+        mkdir -p /gitlab-data
+        echo $$TOKEN > /gitlab-data/token.txt
+
 volumes:
   gitea-data:
   forgejo-data:
   gogs-data:
+  gitlab-data:
