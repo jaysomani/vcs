@@ -67,6 +67,11 @@ class GitLab extends Git
         ]);
 
         $responseBody = $response['body'] ?? [];
+        $responseHeaders = $response['headers'] ?? [];
+        $statusCode = $responseHeaders['status-code'] ?? 0;
+        if ($statusCode >= 400) {
+            throw new Exception("Creating organization {$orgName} failed with status code {$statusCode}");
+        }
 
         return ($responseBody['id'] ?? '') . ':' . ($responseBody['path'] ?? '');
     }
@@ -87,8 +92,9 @@ class GitLab extends Git
      */
     private function getNamespaceId(string $owner): string
     {
-        if (strstr($owner, ':') !== false) {
-            return substr($owner, 0, strpos($owner, ':'));
+        $pos = strpos($owner, ':');
+        if ($pos !== false) {
+            return substr($owner, 0, $pos);
         }
         return $owner;
     }

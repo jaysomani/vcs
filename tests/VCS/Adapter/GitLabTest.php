@@ -28,7 +28,6 @@ class GitLabTest extends Base
 
         if (empty(static::$accessToken)) {
             $this->markTestSkipped('GitLab access token not available');
-            return;
         }
 
         $adapter = new GitLab(new Cache(new None()));
