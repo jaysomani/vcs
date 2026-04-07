@@ -113,8 +113,6 @@ class GitLabTest extends Base
         $this->vcsAdapter->getRepository(static::$owner, $repositoryName);
     }
 
-    // --- Override Base tests that use GitHub-hardcoded data ---
-
     public function testGetPullRequestFromBranch(): void
     {
         $this->markTestSkipped('Not implemented for GitLab yet');
@@ -134,8 +132,6 @@ class GitLabTest extends Base
     {
         $this->markTestSkipped('Not implemented for GitLab yet');
     }
-
-    // --- Skip abstract methods not yet implemented ---
 
     public function testUpdateComment(): void
     {

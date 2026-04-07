@@ -107,6 +107,11 @@ class GitLab extends Git
         ]);
 
         $body = $response['body'] ?? [];
+        $responseHeaders = $response['headers'] ?? [];
+        $statusCode = $responseHeaders['status-code'] ?? 0;
+        if ($statusCode >= 400) {
+            throw new Exception("Creating repository {$repositoryName} failed with status code {$statusCode}");
+        }
         return is_array($body) ? $body : [];
     }
 

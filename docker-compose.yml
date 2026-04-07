@@ -204,7 +204,6 @@ services:
         condition: service_healthy
     environment:
       - GITLAB_ROOT_PASSWORD=${GITLAB_ROOT_PASSWORD:-;asiweml@562}
-      - GITLAB_OMNIBUS_CONFIG=gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD']; gitlab_rails['gitlab_signup_enabled'] = false; gitlab_rails['allow_local_requests_from_web_hooks_and_services'] = true;
     entrypoint: /bin/sh
     command:
       - -c
@@ -218,7 +217,10 @@ services:
 
         # Use OAuth2 password grant to get access token
         OAUTH_RESPONSE=$$(curl -s -X POST http://gitlab:80/oauth/token \
-          -d "grant_type=password&username=root&password=$$GITLAB_ROOT_PASSWORD&scope=api")
+        --data-urlencode "grant_type=password" \
+        --data-urlencode "username=root" \
+        --data-urlencode "password=$$GITLAB_ROOT_PASSWORD" \
+        --data-urlencode "scope=api")
         echo "OAuth response: $$OAUTH_RESPONSE"
 
         OAUTH_TOKEN=$$(echo "$$OAUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
@@ -230,7 +232,7 @@ services:
         PAT_RESPONSE=$$(curl -s -X POST http://gitlab:80/api/v4/users/1/personal_access_tokens \
           -H "Authorization: Bearer $$OAUTH_TOKEN" \
           -H "Content-Type: application/json" \
-          -d '{"name":"bootstrap","scopes":["api","read_user","read_repository","write_repository"],"expires_at":"2027-01-01"}')
+          -d '{"name":"bootstrap","scopes":["api","read_user","read_repository","write_repository"]}')
         echo "PAT response: $$PAT_RESPONSE"
 
         TOKEN=$$(echo "$$PAT_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
