@@ -21,6 +21,15 @@ class GitHub extends Git
 
     public const CONTENTS_FILE = 'file';
 
+    /**
+     * GitHub App JWT expiry in seconds. GitHub allows a maximum of 10 minutes;
+     * we use 9 minutes to leave a 1-minute safety margin for clock drift.
+     *
+     * @see https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app
+     * "The time must be no more than 10 minutes into the future."
+     */
+    public const GITHUB_APP_JWT_EXPIRY = 60 * 9;
+
     protected string $endpoint = 'https://api.github.com';
 
     protected string $accessToken;
@@ -60,7 +69,8 @@ class GitHub extends Git
     {
         $this->installationId = $installationId;
 
-        $response = $this->cache->load($installationId, 60 * 9); // 10 minutes, but 1 minute earlier to be safe
+        // Cache for 1 minute less than the JWT expiry so we refresh before the token actually expires.
+        $response = $this->cache->load($installationId, self::GITHUB_APP_JWT_EXPIRY - 60);
         if ($response == false) {
             $this->generateAccessToken($privateKey, $appId);
 
@@ -600,7 +610,7 @@ class GitHub extends Git
         $appIdentifier = $appId;
 
         $iat = time();
-        $exp = $iat + 9 * 60;
+        $exp = $iat + self::GITHUB_APP_JWT_EXPIRY;
         $payload = [
             'iat' => $iat,
             'exp' => $exp,
