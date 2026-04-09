@@ -101,7 +101,7 @@ class GitLab extends Git
 
     public function createRepository(string $owner, string $repositoryName, bool $private): array
     {
-        $namespaceId = $this->getNamespaceId($owner);
+        $namespaceId = (int) $this->getNamespaceId($owner);
 
         $url = "/projects";
 
