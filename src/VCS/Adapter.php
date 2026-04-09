@@ -389,7 +389,7 @@ abstract class Adapter
         $responseStatus = \curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         if ($decode) {
-            $length = strpos($responseType, ';') ?: 0;
+            $length = strpos($responseType, ';') ?: strlen($responseType);
             switch (substr($responseType, 0, $length)) {
                 case 'application/json':
                     $json = \json_decode($responseBody, true);
