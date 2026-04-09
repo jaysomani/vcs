@@ -313,7 +313,7 @@ class GitLab extends Git
     {
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
-        $url = "/projects/{$projectPath}/repository/commits?ref_name=" . urlencode($branch) . "&limit=1";
+        $url = "/projects/{$projectPath}/repository/commits?ref_name=" . urlencode($branch) . "&per_page=1";
 
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
 
@@ -386,7 +386,7 @@ class GitLab extends Git
                 break;
             case self::CLONE_TYPE_TAG:
                 $tagName = escapeshellarg($version);
-                $commands[] = "git fetch --depth=1 origin refs/tags/{$version} && git checkout FETCH_HEAD";
+                $commands[] = "git fetch --depth=1 origin refs/tags/{$tagName} && git checkout FETCH_HEAD";
                 break;
             default:
                 throw new Exception("Unsupported clone type: {$versionType}");
