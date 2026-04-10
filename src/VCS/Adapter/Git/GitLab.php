@@ -198,7 +198,29 @@ class GitLab extends Git
 
     public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file', string $branch = ''): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $encodedFilepath = urlencode($filepath);
+        $url = "/projects/{$projectPath}/repository/files/{$encodedFilepath}";
+
+        $payload = [
+            'branch' => empty($branch) ? 'main' : $branch,
+            'content' => base64_encode($content),
+            'encoding' => 'base64',
+            'commit_message' => $message,
+            'author_name' => 'utopia',
+            'author_email' => 'utopia@example.com',
+        ];
+
+        $response = $this->call(self::METHOD_POST, $url, ['PRIVATE-TOKEN' => $this->accessToken], $payload);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return $response['body'] ?? [];
     }
 
     public function createBranch(string $owner, string $repositoryName, string $newBranchName, string $oldBranchName): array
@@ -263,12 +285,59 @@ class GitLab extends Git
 
     public function getCommit(string $owner, string $repositoryName, string $commitHash): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/repository/commits/" . urlencode($commitHash);
+
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Commit not found or inaccessible");
+        }
+
+        $commit = $response['body'] ?? [];
+
+        return [
+            'commitAuthor' => $commit['author_name'] ?? 'Unknown',
+            'commitMessage' => $commit['message'] ?? 'No message',
+            'commitHash' => $commit['id'] ?? '',
+            'commitUrl' => $commit['web_url'] ?? '',
+            'commitAuthorAvatar' => '',
+            'commitAuthorUrl' => '',
+        ];
     }
 
     public function getLatestCommit(string $owner, string $repositoryName, string $branch): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/repository/commits?ref_name=" . urlencode($branch) . "&per_page=1";
+
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to get latest commit: HTTP {$responseHeadersStatusCode}");
+        }
+
+        $responseBody = $response['body'] ?? [];
+        if (empty($responseBody[0])) {
+            throw new Exception("Latest commit response is missing required information.");
+        }
+
+        $commit = $responseBody[0];
+
+        return [
+            'commitAuthor' => $commit['author_name'] ?? 'Unknown',
+            'commitMessage' => $commit['message'] ?? 'No message',
+            'commitHash' => $commit['id'] ?? '',
+            'commitUrl' => $commit['web_url'] ?? '',
+            'commitAuthorAvatar' => '',
+            'commitAuthorUrl' => '',
+        ];
     }
 
     public function updateCommitStatus(string $repositoryName, string $commitHash, string $owner, string $state, string $description = '', string $target_url = '', string $context = ''): void
@@ -278,7 +347,52 @@ class GitLab extends Git
 
     public function generateCloneCommand(string $owner, string $repositoryName, string $version, string $versionType, string $directory, string $rootDirectory): string
     {
-        throw new Exception("Not implemented");
+        if (empty($rootDirectory) || $rootDirectory === '/') {
+            $rootDirectory = '*';
+        }
+
+        $ownerPath = $this->getOwnerPath($owner);
+
+        // GitLab clone URL format: http://oauth2:{token}@host/owner/repo.git
+        $baseUrl = $this->gitlabUrl;
+        if (!empty($this->accessToken)) {
+            $baseUrl = str_replace('://', '://oauth2:' . urlencode($this->accessToken) . '@', $this->gitlabUrl);
+        }
+
+        $cloneUrl = escapeshellarg("{$baseUrl}/{$ownerPath}/{$repositoryName}.git");
+        $directory = escapeshellarg($directory);
+        $rootDirectory = escapeshellarg($rootDirectory);
+
+        $commands = [
+            "mkdir -p {$directory}",
+            "cd {$directory}",
+            "git config --global init.defaultBranch main",
+            "git init",
+            "git remote add origin {$cloneUrl}",
+            "git config core.sparseCheckout true",
+            "echo {$rootDirectory} >> .git/info/sparse-checkout",
+            "git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'",
+            "git config remote.origin.tagopt --no-tags",
+        ];
+
+        switch ($versionType) {
+            case self::CLONE_TYPE_BRANCH:
+                $branchName = escapeshellarg($version);
+                $commands[] = "if git ls-remote --exit-code --heads origin {$branchName}; then git pull --depth=1 origin {$branchName} && git checkout {$branchName}; else git checkout -b {$branchName}; fi";
+                break;
+            case self::CLONE_TYPE_COMMIT:
+                $commitHash = escapeshellarg($version);
+                $commands[] = "git fetch --depth=1 origin {$commitHash} && git checkout {$commitHash}";
+                break;
+            case self::CLONE_TYPE_TAG:
+                $tagName = escapeshellarg($version);
+                $commands[] = "git fetch --depth=1 origin refs/tags/{$tagName} && git checkout FETCH_HEAD";
+                break;
+            default:
+                throw new Exception("Unsupported clone type: {$versionType}");
+        }
+
+        return implode(' && ', $commands);
     }
 
     public function getEvent(string $event, string $payload): array
@@ -293,7 +407,28 @@ class GitLab extends Git
 
     public function createTag(string $owner, string $repositoryName, string $tagName, string $target, string $message = ''): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/repository/tags";
+
+        $payload = [
+            'tag_name' => $tagName,
+            'ref' => $target,
+        ];
+
+        if (!empty($message)) {
+            $payload['message'] = $message;
+        }
+
+        $response = $this->call(self::METHOD_POST, $url, ['PRIVATE-TOKEN' => $this->accessToken], $payload);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to create tag {$tagName}: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return $response['body'] ?? [];
     }
 
     public function getCommitStatuses(string $owner, string $repositoryName, string $commitHash): array
