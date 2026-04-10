@@ -520,6 +520,8 @@ class GitLabTest extends Base
                 'feature-branch',
                 static::$defaultBranch
             );
+
+            sleep(15);
     
             $prNumber = $pr['iid'] ?? 0;
     
@@ -662,7 +664,7 @@ class GitLabTest extends Base
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'main.php', '<?php echo "test";');
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'script.js', 'console.log("test");');
 
-            sleep(5); // ← increase from 2 to 5
+            sleep(15);
 
             $languages = $this->vcsAdapter->listRepositoryLanguages(static::$owner, $repositoryName);
 

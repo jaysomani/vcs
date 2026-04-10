@@ -488,7 +488,7 @@ class GitLab extends Git
     {
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
-        $url = "/projects/{$projectPath}/merge_requests/{$pullRequestNumber}/diffs";
+        $url = "/projects/{$projectPath}/merge_requests/{$pullRequestNumber}/changes";
     
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
     
@@ -499,14 +499,12 @@ class GitLab extends Git
         }
     
         $responseBody = $response['body'] ?? [];
-        if (!is_array($responseBody)) {
-            return [];
-        }
+        $changes = $responseBody['changes'] ?? [];
     
         $files = [];
-        foreach ($responseBody as $diff) {
+        foreach ($changes as $change) {
             $files[] = [
-                'filename' => $diff['new_path'] ?? $diff['old_path'] ?? '',
+                'filename' => $change['new_path'] ?? $change['old_path'] ?? '',
             ];
         }
     
