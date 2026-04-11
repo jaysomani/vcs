@@ -183,17 +183,30 @@ class GitLab extends Git
         $url = "/projects/{$projectPath}/repository/tree?ref=" . urlencode($branch);
 
         if ($recursive) {
-            $url .= "&recursive=true&per_page=100";
+            $page = 1;
+            $allItems = [];
+            do {
+                $pagedUrl = $url . "&recursive=true&per_page=100&page={$page}";
+                $response = $this->call(self::METHOD_GET, $pagedUrl, ['PRIVATE-TOKEN' => $this->accessToken]);
+                $responseHeaders = $response['headers'] ?? [];
+                $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+                if ($responseHeadersStatusCode >= 400) {
+                    return [];
+                }
+                $responseBody = $response['body'] ?? [];
+                if (!is_array($responseBody) || empty($responseBody)) {
+                    break;
+                }
+                $allItems = array_merge($allItems, $responseBody);
+                $page++;
+            } while (count($responseBody) === 100);
+            return array_column($allItems, 'path');
         }
 
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
 
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
-        if ($responseHeadersStatusCode === 404) {
-            return [];
-        }
-
         if ($responseHeadersStatusCode >= 400) {
             return [];
         }
@@ -211,7 +224,7 @@ class GitLab extends Git
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
         $encodedPath = urlencode($path);
-        $url = "/projects/{$projectPath}/repository/files/{$encodedPath}?ref=" . urlencode(empty($ref) ? 'main' : $ref);
+        $url = "/projects/{$projectPath}/repository/files/{$encodedPath}?ref=" . urlencode(empty($ref) ? 'HEAD' : $ref);
 
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
 
@@ -225,7 +238,11 @@ class GitLab extends Git
 
         $content = '';
         if (($responseBody['encoding'] ?? '') === 'base64') {
-            $content = base64_decode($responseBody['content'] ?? '');
+            $rawContent = $responseBody['content'] ?? '';
+            $content = base64_decode($rawContent, true);
+            if ($content === false) {
+                throw new \Utopia\VCS\Exception\FileNotFound();
+            }
         } else {
             throw new \Utopia\VCS\Exception\FileNotFound();
         }
@@ -241,10 +258,10 @@ class GitLab extends Git
     {
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
-        $url = "/projects/{$projectPath}/repository/tree?ref=" . urlencode(empty($ref) ? 'main' : $ref);
+        $url = "/projects/{$projectPath}/repository/tree" . (empty($ref) ? '' : '?ref=' . urlencode($ref));
 
         if (!empty($path)) {
-            $url .= "&path=" . urlencode($path);
+            $url .= (empty($ref) ? '?' : '&') . 'path=' . urlencode($path);
         }
 
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
