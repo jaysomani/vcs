@@ -178,22 +178,138 @@ class GitLab extends Git
 
     public function getRepositoryTree(string $owner, string $repositoryName, string $branch, bool $recursive = false): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/repository/tree?ref=" . urlencode($branch);
+
+        if ($recursive) {
+            $page = 1;
+            $allItems = [];
+            do {
+                $pagedUrl = $url . "&recursive=true&per_page=100&page={$page}";
+                $response = $this->call(self::METHOD_GET, $pagedUrl, ['PRIVATE-TOKEN' => $this->accessToken]);
+                $responseHeaders = $response['headers'] ?? [];
+                $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+                if ($responseHeadersStatusCode >= 400) {
+                    return [];
+                }
+                $responseBody = $response['body'] ?? [];
+                if (!is_array($responseBody) || empty($responseBody)) {
+                    break;
+                }
+                $allItems = array_merge($allItems, $responseBody);
+                $page++;
+            } while (count($responseBody) === 100);
+            return array_column($allItems, 'path');
+        }
+
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            return [];
+        }
+
+        $responseBody = $response['body'] ?? [];
+        if (!is_array($responseBody)) {
+            return [];
+        }
+
+        return array_column($responseBody, 'path');
     }
 
     public function getRepositoryContent(string $owner, string $repositoryName, string $path, string $ref = ''): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $encodedPath = urlencode($path);
+        $url = "/projects/{$projectPath}/repository/files/{$encodedPath}?ref=" . urlencode(empty($ref) ? 'HEAD' : $ref);
+
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode !== 200) {
+            throw new \Utopia\VCS\Exception\FileNotFound();
+        }
+
+        $responseBody = $response['body'] ?? [];
+
+        $content = '';
+        if (($responseBody['encoding'] ?? '') === 'base64') {
+            $rawContent = $responseBody['content'] ?? '';
+            $content = base64_decode($rawContent, true);
+            if ($content === false) {
+                throw new \Utopia\VCS\Exception\FileNotFound();
+            }
+        } else {
+            throw new \Utopia\VCS\Exception\FileNotFound();
+        }
+
+        return [
+            'sha' => $responseBody['blob_id'] ?? '',
+            'size' => $responseBody['size'] ?? 0,
+            'content' => $content,
+        ];
     }
 
     public function listRepositoryContents(string $owner, string $repositoryName, string $path = '', string $ref = ''): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/repository/tree" . (empty($ref) ? '' : '?ref=' . urlencode($ref));
+
+        if (!empty($path)) {
+            $url .= (empty($ref) ? '?' : '&') . 'path=' . urlencode($path);
+        }
+
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            return [];
+        }
+
+        $responseBody = $response['body'] ?? [];
+        if (!is_array($responseBody)) {
+            return [];
+        }
+
+        $contents = [];
+        foreach ($responseBody as $item) {
+            $type = ($item['type'] ?? '') === 'blob' ? self::CONTENTS_FILE : self::CONTENTS_DIRECTORY;
+            $contents[] = [
+                'name' => $item['name'] ?? '',
+                'size' => 0,
+                'type' => $type,
+            ];
+        }
+
+        return $contents;
     }
 
     public function listRepositoryLanguages(string $owner, string $repositoryName): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/languages";
+
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            return [];
+        }
+
+        $responseBody = $response['body'] ?? [];
+        if (!is_array($responseBody)) {
+            return [];
+        }
+
+        return array_keys($responseBody);
     }
 
     public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file', string $branch = ''): array
@@ -225,7 +341,22 @@ class GitLab extends Git
 
     public function createBranch(string $owner, string $repositoryName, string $newBranchName, string $oldBranchName): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/repository/branches";
+
+        $response = $this->call(self::METHOD_POST, $url, ['PRIVATE-TOKEN' => $this->accessToken], [
+            'branch' => $newBranchName,
+            'ref' => $oldBranchName,
+        ]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to create branch {$newBranchName}: HTTP {$responseHeadersStatusCode}");
+        }
+
+        return $response['body'] ?? [];
     }
 
     public function createPullRequest(string $owner, string $repositoryName, string $title, string $head, string $base, string $body = ''): array
