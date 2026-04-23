@@ -168,12 +168,65 @@ class GitLab extends Git
 
     public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        
+        // Try group first, fall back to user namespace
+        $url = "/groups/{$ownerPath}/projects?page={$page}&per_page={$per_page}";
+        if (!empty($search)) {
+            $url .= "&search=" . urlencode($search);
+        }
+    
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+        $responseHeaders = $response['headers'] ?? [];
+        $statusCode = $responseHeaders['status-code'] ?? 0;
+    
+        // Fall back to user namespace if group not found
+        if ($statusCode === 404) {
+            $url = "/users/{$ownerPath}/projects?page={$page}&per_page={$per_page}";
+            if (!empty($search)) {
+                $url .= "&search=" . urlencode($search);
+            }
+            $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+            $responseHeaders = $response['headers'] ?? [];
+            $statusCode = $responseHeaders['status-code'] ?? 0;
+        }
+    
+        if ($statusCode >= 400) {
+            return [];
+        }
+    
+        $responseBody = $response['body'] ?? [];
+        if (!is_array($responseBody)) {
+            return [];
+        }
+    
+        $repositories = [];
+        foreach ($responseBody as $repo) {
+            $repositories[] = [
+                'id' => $repo['id'] ?? 0,
+                'name' => $repo['name'] ?? '',
+                'description' => $repo['description'] ?? '',
+                'private' => ($repo['visibility'] ?? '') === 'private',
+            ];
+        }
+    
+        return $repositories;
     }
 
     public function getRepositoryName(string $repositoryId): string
     {
-        throw new Exception("Not implemented");
+        $url = "/projects/{$repositoryId}";
+
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Repository {$repositoryId} not found");
+        }
+
+        $responseBody = $response['body'] ?? [];
+        return $responseBody['path'] ?? '';
     }
 
     public function getRepositoryTree(string $owner, string $repositoryName, string $branch, bool $recursive = false): array
@@ -391,7 +444,28 @@ class GitLab extends Git
 
     public function getOwnerName(string $installationId, ?int $repositoryId = null): string
     {
-        throw new Exception("Not implemented");
+        if ($repositoryId !== null) {
+            $url = "/projects/{$repositoryId}";
+            $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+            $responseHeaders = $response['headers'] ?? [];
+            $statusCode = $responseHeaders['status-code'] ?? 0;
+            if ($statusCode >= 400) {
+                throw new Exception("Failed to get owner name for repository {$repositoryId}: HTTP {$statusCode}");
+            }
+            $responseBody = $response['body'] ?? [];
+            $namespace = $responseBody['namespace'] ?? [];
+            return $namespace['path'] ?? '';
+        }
+    
+        $url = "/user";
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+        $responseHeaders = $response['headers'] ?? [];
+        $statusCode = $responseHeaders['status-code'] ?? 0;
+        if ($statusCode >= 400) {
+            throw new Exception("Failed to get current user: HTTP {$statusCode}");
+        }
+        $responseBody = $response['body'] ?? [];
+        return $responseBody['username'] ?? '';
     }
 
     public function getPullRequest(string $owner, string $repositoryName, int $pullRequestNumber): array
@@ -411,7 +485,30 @@ class GitLab extends Git
 
     public function listBranches(string $owner, string $repositoryName): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+    
+        $branches = [];
+        $page = 1;
+        do {
+            $pagedUrl = "/projects/{$projectPath}/repository/branches?per_page=100&page={$page}";
+            $response = $this->call(self::METHOD_GET, $pagedUrl, ['PRIVATE-TOKEN' => $this->accessToken]);
+            $responseHeaders = $response['headers'] ?? [];
+            $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+            if ($responseHeadersStatusCode >= 400) {
+                return [];
+            }
+            $responseBody = $response['body'] ?? [];
+            if (!is_array($responseBody) || empty($responseBody)) {
+                break;
+            }
+            foreach ($responseBody as $branch) {
+                $branches[] = ['name' => $branch['name'] ?? ''];
+            }
+            $page++;
+        } while (count($responseBody) === 100);
+    
+        return $branches;
     }
 
     public function getCommit(string $owner, string $repositoryName, string $commitHash): array
@@ -473,7 +570,44 @@ class GitLab extends Git
 
     public function updateCommitStatus(string $repositoryName, string $commitHash, string $owner, string $state, string $description = '', string $target_url = '', string $context = ''): void
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/statuses/" . urlencode($commitHash);
+
+        // GitLab states: pending, running, success, failed, canceled
+        $stateMap = [
+            'pending' => 'pending',
+            'success' => 'success',
+            'failure' => 'failed',
+            'error' => 'failed',
+            'cancelled' => 'canceled',
+        ];
+
+        $gitlabState = $stateMap[$state] ?? $state;
+
+        $payload = [
+            'state' => $gitlabState,
+        ];
+
+        if (!empty($description)) {
+            $payload['description'] = $description;
+        }
+
+        if (!empty($target_url)) {
+            $payload['target_url'] = $target_url;
+        }
+
+        if (!empty($context)) {
+            $payload['name'] = $context;
+        }
+
+        $response = $this->call(self::METHOD_POST, $url, ['PRIVATE-TOKEN' => $this->accessToken], $payload);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to update commit status: HTTP {$responseHeadersStatusCode}");
+        }
     }
 
     public function generateCloneCommand(string $owner, string $repositoryName, string $version, string $versionType, string $directory, string $rootDirectory): string
@@ -564,6 +698,33 @@ class GitLab extends Git
 
     public function getCommitStatuses(string $owner, string $repositoryName, string $commitHash): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/repository/commits/" . urlencode($commitHash) . "/statuses";
+
+        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            return [];
+        }
+
+        $responseBody = $response['body'] ?? [];
+        if (!is_array($responseBody)) {
+            return [];
+        }
+
+        $statuses = [];
+        foreach ($responseBody as $status) {
+            $statuses[] = [
+                'state' => $status['status'] ?? '',
+                'description' => $status['description'] ?? '',
+                'target_url' => $status['target_url'] ?? '',
+                'context' => $status['name'] ?? '',
+            ];
+        }
+
+        return $statuses;
     }
 }
