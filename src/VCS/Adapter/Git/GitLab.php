@@ -487,28 +487,27 @@ class GitLab extends Git
     {
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
-        $url = "/projects/{$projectPath}/repository/branches";
-
-        $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
-
-        $responseHeaders = $response['headers'] ?? [];
-        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
-        if ($responseHeadersStatusCode >= 400) {
-            return [];
-        }
-
-        $responseBody = $response['body'] ?? [];
-        if (!is_array($responseBody)) {
-            return [];
-        }
-
+    
         $branches = [];
-        foreach ($responseBody as $branch) {
-            $branches[] = [
-                'name' => $branch['name'] ?? '',
-            ];
-        }
-
+        $page = 1;
+        do {
+            $pagedUrl = "/projects/{$projectPath}/repository/branches?per_page=100&page={$page}";
+            $response = $this->call(self::METHOD_GET, $pagedUrl, ['PRIVATE-TOKEN' => $this->accessToken]);
+            $responseHeaders = $response['headers'] ?? [];
+            $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+            if ($responseHeadersStatusCode >= 400) {
+                return [];
+            }
+            $responseBody = $response['body'] ?? [];
+            if (!is_array($responseBody) || empty($responseBody)) {
+                break;
+            }
+            foreach ($responseBody as $branch) {
+                $branches[] = ['name' => $branch['name'] ?? ''];
+            }
+            $page++;
+        } while (count($responseBody) === 100);
+    
         return $branches;
     }
 
