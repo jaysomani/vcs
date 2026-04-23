@@ -169,25 +169,37 @@ class GitLab extends Git
     public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
     {
         $ownerPath = $this->getOwnerPath($owner);
+        
+        // Try group first, fall back to user namespace
         $url = "/groups/{$ownerPath}/projects?page={$page}&per_page={$per_page}";
-
         if (!empty($search)) {
             $url .= "&search=" . urlencode($search);
         }
-
+    
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
-
         $responseHeaders = $response['headers'] ?? [];
-        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
-        if ($responseHeadersStatusCode >= 400) {
+        $statusCode = $responseHeaders['status-code'] ?? 0;
+    
+        // Fall back to user namespace if group not found
+        if ($statusCode === 404) {
+            $url = "/users/{$ownerPath}/projects?page={$page}&per_page={$per_page}";
+            if (!empty($search)) {
+                $url .= "&search=" . urlencode($search);
+            }
+            $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+            $responseHeaders = $response['headers'] ?? [];
+            $statusCode = $responseHeaders['status-code'] ?? 0;
+        }
+    
+        if ($statusCode >= 400) {
             return [];
         }
-
+    
         $responseBody = $response['body'] ?? [];
         if (!is_array($responseBody)) {
             return [];
         }
-
+    
         $repositories = [];
         foreach ($responseBody as $repo) {
             $repositories[] = [
@@ -197,7 +209,7 @@ class GitLab extends Git
                 'private' => ($repo['visibility'] ?? '') === 'private',
             ];
         }
-
+    
         return $repositories;
     }
 
@@ -435,13 +447,23 @@ class GitLab extends Git
         if ($repositoryId !== null) {
             $url = "/projects/{$repositoryId}";
             $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+            $responseHeaders = $response['headers'] ?? [];
+            $statusCode = $responseHeaders['status-code'] ?? 0;
+            if ($statusCode >= 400) {
+                throw new Exception("Failed to get owner name for repository {$repositoryId}: HTTP {$statusCode}");
+            }
             $responseBody = $response['body'] ?? [];
             $namespace = $responseBody['namespace'] ?? [];
             return $namespace['path'] ?? '';
         }
-
+    
         $url = "/user";
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+        $responseHeaders = $response['headers'] ?? [];
+        $statusCode = $responseHeaders['status-code'] ?? 0;
+        if ($statusCode >= 400) {
+            throw new Exception("Failed to get current user: HTTP {$statusCode}");
+        }
         $responseBody = $response['body'] ?? [];
         return $responseBody['username'] ?? '';
     }
@@ -551,7 +573,7 @@ class GitLab extends Git
     {
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
-        $url = "/projects/{$projectPath}/statuses/{$commitHash}";
+        $url = "/projects/{$projectPath}/statuses/" . urlencode($commitHash);
 
         // GitLab states: pending, running, success, failed, canceled
         $stateMap = [
@@ -679,7 +701,7 @@ class GitLab extends Git
     {
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
-        $url = "/projects/{$projectPath}/repository/commits/{$commitHash}/statuses";
+        $url = "/projects/{$projectPath}/repository/commits/" . urlencode($commitHash) . "/statuses";
 
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
 
