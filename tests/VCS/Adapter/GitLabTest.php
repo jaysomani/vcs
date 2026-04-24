@@ -528,13 +528,13 @@ class GitLabTest extends Base
     
         try {
             // Clear previous requests
-            \file_get_contents('http://request-catcher:5000/__clear__');
+            $this->deleteLastWebhookRequest();
     
             // Create webhook
             $webhookId = $this->vcsAdapter->createWebhook(
                 static::$owner,
                 $repositoryName,
-                'http://request-catcher:5000',
+                System::getEnv('TESTS_REQUEST_CATCHER_URL', 'http://request-catcher:5000'),
                 'test-secret',
                 ['push']
             );
@@ -552,9 +552,7 @@ class GitLabTest extends Base
             // Wait for webhook delivery using assertEventually
             $payload = [];
             $this->assertEventually(function () use (&$payload) {
-                $response = \file_get_contents('http://request-catcher:5000/__last_request__');
-                $this->assertNotFalse($response);
-                $data = \json_decode($response, true);
+                $data = $this->getLastWebhookRequest();
                 $this->assertNotEmpty($data);
                 $payload = \json_decode($data['data'] ?? '{}', true);
                 $this->assertNotEmpty($payload);
@@ -575,13 +573,13 @@ class GitLabTest extends Base
     
         try {
             // Clear previous requests
-            \file_get_contents('http://request-catcher:5000/__clear__');
+            $this->deleteLastWebhookRequest();
     
             // Create webhook
             $webhookId = $this->vcsAdapter->createWebhook(
                 static::$owner,
                 $repositoryName,
-                'http://request-catcher:5000',
+                System::getEnv('TESTS_REQUEST_CATCHER_URL', 'http://request-catcher:5000'),
                 'test-secret',
                 ['pull_request']
             );
@@ -596,9 +594,7 @@ class GitLabTest extends Base
             // Wait for webhook delivery
             $payload = [];
             $this->assertEventually(function () use (&$payload) {
-                $response = \file_get_contents('http://request-catcher:5000/__last_request__');
-                $this->assertNotFalse($response);
-                $data = \json_decode($response, true);
+                $data = $this->getLastWebhookRequest();
                 $this->assertNotEmpty($data);
                 $payload = \json_decode($data['data'] ?? '{}', true);
                 $this->assertNotEmpty($payload);
