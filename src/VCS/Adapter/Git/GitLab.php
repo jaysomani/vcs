@@ -414,12 +414,53 @@ class GitLab extends Git
 
     public function createPullRequest(string $owner, string $repositoryName, string $title, string $head, string $base, string $body = ''): array
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $url = "/projects/{$projectPath}/merge_requests";
+    
+        $payload = [
+            'title'         => $title,
+            'source_branch' => $head,
+            'target_branch' => $base,
+            'description'   => $body,
+        ];
+    
+        $response = $this->call(self::METHOD_POST, $url, ['PRIVATE-TOKEN' => $this->accessToken], $payload);
+    
+        $responseHeaders = $response['headers'] ?? [];
+        $statusCode = $responseHeaders['status-code'] ?? 0;
+        if ($statusCode >= 400) {
+            throw new Exception("Failed to create merge request: HTTP {$statusCode}");
+        }
+    
+        return $response['body'] ?? [];
     }
 
     public function createWebhook(string $owner, string $repositoryName, string $url, string $secret, array $events = ['push', 'pull_request']): int
     {
-        throw new Exception("Not implemented");
+        $ownerPath = $this->getOwnerPath($owner);
+        $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
+        $apiUrl = "/projects/{$projectPath}/hooks";
+    
+        $payload = [
+            'url' => $url,
+            'token' => $secret,
+            'enable_ssl_verification' => false,
+            'push_events' => in_array('push', $events),
+            'merge_requests_events' => in_array('pull_request', $events),
+        ];
+    
+        $response = $this->call(self::METHOD_POST, $apiUrl, ['PRIVATE-TOKEN' => $this->accessToken], $payload);
+    
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            $body = $response['body'] ?? [];
+            throw new Exception("Failed to create webhook: HTTP {$responseHeadersStatusCode} - " . json_encode($body));
+        }
+    
+        $responseBody = $response['body'] ?? [];
+        return $responseBody['id'] ?? 0;
     }
 
     public function createComment(string $owner, string $repositoryName, int $pullRequestNumber, string $comment): string
@@ -662,12 +703,63 @@ class GitLab extends Git
 
     public function getEvent(string $event, string $payload): array
     {
-        throw new Exception("Not implemented");
+        $payloadArray = json_decode($payload, true);
+        if ($payloadArray === false || $payloadArray === null) {
+            return [];
+        }
+    
+        switch ($event) {
+            case 'Push Hook':
+                $commits = $payloadArray['commits'] ?? [];
+                $latestCommit = !empty($commits) ? $commits[0] : [];
+                $ref = $payloadArray['ref'] ?? '';
+                // ref format: refs/heads/main
+                $branch = str_replace('refs/heads/', '', $ref);
+    
+                return [
+                    'type' => 'push',
+                    'name' => $payloadArray['project']['name'] ?? '',
+                    'owner' => $payloadArray['project']['namespace'] ?? '',
+                    'branch' => $branch,
+                    'commitHash' => $payloadArray['checkout_sha'] ?? '',
+                    'commitAuthor' => $latestCommit['author']['name'] ?? '',
+                    'commitMessage' => $latestCommit['message'] ?? '',
+                    'commitUrl' => $latestCommit['url'] ?? '',
+                    'commitAuthorUrl' => '',
+                    'commitAuthorAvatar' => '',
+                ];
+    
+            case 'Merge Request Hook':
+                $mr = $payloadArray['object_attributes'] ?? [];
+                $action = $mr['action'] ?? '';
+    
+                return [
+                    'type' => 'pull_request',
+                    'name' => $payloadArray['project']['name'] ?? '',
+                    'owner' => $payloadArray['project']['namespace'] ?? '',
+                    'branch' => $mr['source_branch'] ?? '',
+                    'action' => $action,
+                    'pullRequestNumber' => $mr['iid'] ?? 0,
+                    'pullRequestTitle' => $mr['title'] ?? '',
+                    'pullRequestUrl' => $mr['url'] ?? '',
+                    'headBranch' => $mr['source_branch'] ?? '',
+                    'baseBranch' => $mr['target_branch'] ?? '',
+                    'commitHash' => $mr['last_commit']['id'] ?? '',
+                    'commitUrl' => $mr['last_commit']['url'] ?? '',
+                    'commitMessage' => $mr['last_commit']['message'] ?? '',
+                    'commitAuthor' => $mr['last_commit']['author']['name'] ?? '',
+                    'commitAuthorUrl' => '',
+                    'commitAuthorAvatar' => '',
+                ];
+    
+            default:
+                return [];
+        }
     }
 
     public function validateWebhookEvent(string $payload, string $signature, string $signatureKey): bool
     {
-        throw new Exception("Not implemented");
+        return hash_equals($signatureKey, $signature);
     }
 
     public function createTag(string $owner, string $repositoryName, string $tagName, string $target, string $message = ''): array

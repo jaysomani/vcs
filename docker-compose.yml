@@ -19,6 +19,7 @@ services:
       - TESTS_FORGEJO_URL=http://forgejo:3000
       - TESTS_GOGS_URL=http://gogs:3000
       - TESTS_GITLAB_URL=http://gitlab:80
+      - TESTS_GITLAB_REQUEST_CATCHER_URL=http://request-catcher:5000
     depends_on:
       gitea:
         condition: service_healthy
@@ -183,7 +184,7 @@ services:
     environment:
       - GITLAB_ROOT_PASSWORD=${GITLAB_ROOT_PASSWORD:-;asiweml@562}
       - GITLAB_ROOT_EMAIL=${GITLAB_ROOT_EMAIL:-utopia@example.com}
-      - GITLAB_OMNIBUS_CONFIG=gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD']; gitlab_rails['gitlab_signup_enabled'] = false;
+      - GITLAB_OMNIBUS_CONFIG=gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD']; gitlab_rails['gitlab_signup_enabled'] = false; gitlab_rails['allow_local_requests_from_web_hooks_and_services'] = true; gitlab_rails['allow_local_requests_from_web_hooks_and_services'] = true;
     volumes:
       - gitlab-data:/var/opt/gitlab
     ports:
@@ -241,6 +242,13 @@ services:
         if [ -z "$$TOKEN" ]; then echo "Failed to get token"; exit 1; fi
         mkdir -p /gitlab-data
         echo $$TOKEN > /gitlab-data/token.txt
+
+        # Enable local requests for webhooks
+        curl -s -X PUT "http://gitlab:80/api/v4/application/settings" \
+          -H "PRIVATE-TOKEN: $$TOKEN" \
+          -H "Content-Type: application/json" \
+          -d '{"allow_local_requests_from_web_hooks_and_services":true,"allow_local_requests_from_system_hooks":true}'
+        echo "Local webhook requests enabled"
 
 volumes:
   gitea-data:
