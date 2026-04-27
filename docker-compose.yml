@@ -15,11 +15,10 @@ services:
       - TESTS_GITHUB_APP_IDENTIFIER
       - TESTS_GITHUB_INSTALLATION_ID
       - TESTS_GITEA_URL=http://gitea:3000
-      - TESTS_GITEA_REQUEST_CATCHER_URL=http://request-catcher:5000
+      - TESTS_REQUEST_CATCHER_URL=http://request-catcher:5000
       - TESTS_FORGEJO_URL=http://forgejo:3000
       - TESTS_GOGS_URL=http://gogs:3000
       - TESTS_GITLAB_URL=http://gitlab:80
-      - TESTS_GITLAB_REQUEST_CATCHER_URL=http://request-catcher:5000
     depends_on:
       gitea:
         condition: service_healthy
