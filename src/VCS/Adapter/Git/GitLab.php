@@ -169,17 +169,17 @@ class GitLab extends Git
     public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
     {
         $ownerPath = $this->getOwnerPath($owner);
-        
+
         // Try group first, fall back to user namespace
         $url = "/groups/{$ownerPath}/projects?page={$page}&per_page={$per_page}";
         if (!empty($search)) {
             $url .= "&search=" . urlencode($search);
         }
-    
+
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
-    
+
         // Fall back to user namespace if group not found
         if ($statusCode === 404) {
             $url = "/users/{$ownerPath}/projects?page={$page}&per_page={$per_page}";
@@ -190,16 +190,16 @@ class GitLab extends Git
             $responseHeaders = $response['headers'] ?? [];
             $statusCode = $responseHeaders['status-code'] ?? 0;
         }
-    
+
         if ($statusCode >= 400) {
             return [];
         }
-    
+
         $responseBody = $response['body'] ?? [];
         if (!is_array($responseBody)) {
             return [];
         }
-    
+
         $repositories = [];
         foreach ($responseBody as $repo) {
             $repositories[] = [
@@ -209,7 +209,7 @@ class GitLab extends Git
                 'private' => ($repo['visibility'] ?? '') === 'private',
             ];
         }
-    
+
         return $repositories;
     }
 
@@ -417,22 +417,22 @@ class GitLab extends Git
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
         $url = "/projects/{$projectPath}/merge_requests";
-    
+
         $payload = [
             'title'         => $title,
             'source_branch' => $head,
             'target_branch' => $base,
             'description'   => $body,
         ];
-    
+
         $response = $this->call(self::METHOD_POST, $url, ['PRIVATE-TOKEN' => $this->accessToken], $payload);
-    
+
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
             throw new Exception("Failed to create merge request: HTTP {$statusCode}");
         }
-    
+
         return $response['body'] ?? [];
     }
 
@@ -441,7 +441,7 @@ class GitLab extends Git
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
         $apiUrl = "/projects/{$projectPath}/hooks";
-    
+
         $payload = [
             'url' => $url,
             'token' => $secret,
@@ -449,16 +449,16 @@ class GitLab extends Git
             'push_events' => in_array('push', $events),
             'merge_requests_events' => in_array('pull_request', $events),
         ];
-    
+
         $response = $this->call(self::METHOD_POST, $apiUrl, ['PRIVATE-TOKEN' => $this->accessToken], $payload);
-    
+
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
             $body = $response['body'] ?? [];
             throw new Exception("Failed to create webhook: HTTP {$responseHeadersStatusCode} - " . json_encode($body));
         }
-    
+
         $responseBody = $response['body'] ?? [];
         return $responseBody['id'] ?? 0;
     }
@@ -497,7 +497,7 @@ class GitLab extends Git
             $namespace = $responseBody['namespace'] ?? [];
             return $namespace['path'] ?? '';
         }
-    
+
         $url = "/user";
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
         $responseHeaders = $response['headers'] ?? [];
@@ -528,7 +528,7 @@ class GitLab extends Git
     {
         $ownerPath = $this->getOwnerPath($owner);
         $projectPath = urlencode("{$ownerPath}/{$repositoryName}");
-    
+
         $branches = [];
         $page = 1;
         do {
@@ -544,11 +544,11 @@ class GitLab extends Git
                 break;
             }
             foreach ($responseBody as $branch) {
-                $branches[] = ['name' => $branch['name'] ?? ''];
+                $branches[] = $branch['name'] ?? '';
             }
             $page++;
         } while (count($responseBody) === 100);
-    
+
         return $branches;
     }
 
@@ -707,7 +707,7 @@ class GitLab extends Git
         if ($payloadArray === false || $payloadArray === null) {
             return [];
         }
-    
+
         switch ($event) {
             case 'Push Hook':
                 $commits = $payloadArray['commits'] ?? [];
@@ -715,7 +715,7 @@ class GitLab extends Git
                 $ref = $payloadArray['ref'] ?? '';
                 // ref format: refs/heads/main
                 $branch = str_replace('refs/heads/', '', $ref);
-    
+
                 return [
                     'type' => 'push',
                     'name' => $payloadArray['project']['name'] ?? '',
@@ -728,11 +728,11 @@ class GitLab extends Git
                     'commitAuthorUrl' => '',
                     'commitAuthorAvatar' => '',
                 ];
-    
+
             case 'Merge Request Hook':
                 $mr = $payloadArray['object_attributes'] ?? [];
                 $action = $mr['action'] ?? '';
-    
+
                 return [
                     'type' => 'pull_request',
                     'name' => $payloadArray['project']['name'] ?? '',
@@ -751,7 +751,7 @@ class GitLab extends Git
                     'commitAuthorUrl' => '',
                     'commitAuthorAvatar' => '',
                 ];
-    
+
             default:
                 return [];
         }
