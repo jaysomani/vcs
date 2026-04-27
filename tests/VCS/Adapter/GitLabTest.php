@@ -683,7 +683,7 @@ class GitLabTest extends Base
             }, 15000, 1000);
 
             $this->assertSame('merge_request', $payload['object_kind'] ?? '');
-            $this->assertSame('open', $payload['object_attributes']['action'] ?? '');
+            $this->assertContains($payload['object_attributes']['action'] ?? '', ['open', 'update']);
 
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);

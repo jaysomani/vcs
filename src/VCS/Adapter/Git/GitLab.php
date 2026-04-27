@@ -105,8 +105,14 @@ class GitLab extends Git
         while (true) {
             $url = "/projects/{$projectPath}/merge_requests?state=all&per_page=100&page={$page}";
             $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
+            $responseHeaders = $response['headers'] ?? [];
+            $statusCode = $responseHeaders['status-code'] ?? 0;
+            if ($statusCode >= 400) {
+                throw new Exception("Failed to list merge requests: HTTP {$statusCode}");
+            }
+            
             $mrs = $response['body'] ?? [];
-
+            
             if (empty($mrs) || !is_array($mrs)) {
                 break;
             }
