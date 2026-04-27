@@ -507,19 +507,206 @@ class GitLabTest extends Base
         }
     }
 
+    public function testValidateWebhookEvent(): void
+    {
+        $secret = 'my-secret-token';
+        $payload = '{"object_kind":"push"}';
+
+        // Valid token — should return true
+        $result = $this->vcsAdapter->validateWebhookEvent($payload, $secret, $secret);
+        $this->assertTrue($result);
+
+        // Invalid token — should return false
+        $result = $this->vcsAdapter->validateWebhookEvent($payload, 'wrong-token', $secret);
+        $this->assertFalse($result);
+    }
+
     public function testWebhookPushEvent(): void
     {
-        $this->markTestSkipped('Not implemented for GitLab yet');
+        $repositoryName = 'test-webhook-push-' . \uniqid();
+        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
+
+        try {
+            // Clear previous requests
+            $this->deleteLastWebhookRequest();
+
+            // Create webhook
+            $webhookId = $this->vcsAdapter->createWebhook(
+                static::$owner,
+                $repositoryName,
+                System::getEnv('TESTS_REQUEST_CATCHER_URL', 'http://request-catcher:5000'),
+                'test-secret',
+                ['push']
+            );
+            $this->assertGreaterThan(0, $webhookId);
+
+            // Trigger push by creating a file
+            $this->vcsAdapter->createFile(
+                static::$owner,
+                $repositoryName,
+                'README.md',
+                '# Test',
+                'Initial commit'
+            );
+
+            // Wait for webhook delivery using assertEventually
+            $payload = [];
+            $this->assertEventually(function () use (&$payload) {
+                $data = $this->getLastWebhookRequest();
+                $this->assertNotEmpty($data);
+                $payload = \json_decode($data['data'] ?? '{}', true);
+                $this->assertNotEmpty($payload);
+            }, 15000, 1000);
+
+            $this->assertSame('push', $payload['object_kind'] ?? '');
+            $this->assertNotEmpty($payload['checkout_sha'] ?? '');
+
+        } finally {
+            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
+        }
     }
 
     public function testWebhookPullRequestEvent(): void
     {
-        $this->markTestSkipped('Not implemented for GitLab yet');
+        $repositoryName = 'test-webhook-mr-' . \uniqid();
+        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
+
+        try {
+            // Clear previous requests
+            $this->deleteLastWebhookRequest();
+
+            // Create webhook
+            $webhookId = $this->vcsAdapter->createWebhook(
+                static::$owner,
+                $repositoryName,
+                System::getEnv('TESTS_REQUEST_CATCHER_URL', 'http://request-catcher:5000'),
+                'test-secret',
+                ['pull_request']
+            );
+            $this->assertGreaterThan(0, $webhookId);
+
+            // Setup and create MR
+            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
+            $this->vcsAdapter->createBranch(static::$owner, $repositoryName, 'feature', static::$defaultBranch);
+            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'feature.txt', 'feature', 'Add feature', 'feature');
+            $this->vcsAdapter->createPullRequest(static::$owner, $repositoryName, 'Test MR', 'feature', static::$defaultBranch);
+
+            // Wait for webhook delivery
+            $payload = [];
+            $this->assertEventually(function () use (&$payload) {
+                $data = $this->getLastWebhookRequest();
+                $this->assertNotEmpty($data);
+                $payload = \json_decode($data['data'] ?? '{}', true);
+                $this->assertNotEmpty($payload);
+            }, 15000, 1000);
+
+            $this->assertSame('merge_request', $payload['object_kind'] ?? '');
+            $this->assertSame('open', $payload['object_attributes']['action'] ?? '');
+
+        } finally {
+            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
+        }
     }
 
     public function testGetEventPush(): void
     {
-        $this->markTestSkipped('Not implemented for GitLab yet');
+        $payload = json_encode([
+            'object_kind' => 'push',
+            'ref' => 'refs/heads/main',
+            'checkout_sha' => 'abc123',
+            'project' => [
+                'name' => 'test-repo',
+                'namespace' => 'test-org',
+            ],
+            'commits' => [
+                [
+                    'message' => 'Test commit',
+                    'url' => 'http://example.com/commit/abc123',
+                    'author' => ['name' => 'Test User'],
+                ],
+            ],
+        ]);
+
+        if ($payload === false) {
+            $this->fail('Failed to encode JSON payload');
+        }
+
+        $result = $this->vcsAdapter->getEvent('Push Hook', $payload);
+
+        $this->assertIsArray($result);
+        $this->assertSame('push', $result['type']);
+        $this->assertSame('main', $result['branch']);
+        $this->assertSame('abc123', $result['commitHash']);
+        $this->assertSame('Test commit', $result['commitMessage']);
+        $this->assertSame('Test User', $result['commitAuthor']);
+        $this->assertSame('test-repo', $result['name']);
+    }
+
+    public function testGetEventPullRequest(): void
+    {
+        $payload = json_encode([
+            'object_kind' => 'merge_request',
+            'project' => [
+                'name' => 'test-repo',
+                'namespace' => 'test-org',
+            ],
+            'object_attributes' => [
+                'iid' => 1,
+                'title' => 'Test MR',
+                'action' => 'open',
+                'source_branch' => 'feature',
+                'target_branch' => 'main',
+                'url' => 'http://example.com/mr/1',
+                'last_commit' => [
+                    'id' => 'abc123',
+                    'message' => 'Test commit',
+                    'url' => 'http://example.com/commit/abc123',
+                    'author' => ['name' => 'Test User'],
+                ],
+            ],
+        ]);
+
+        if ($payload === false) {
+            $this->fail('Failed to encode JSON payload');
+        }
+
+        $result = $this->vcsAdapter->getEvent('Merge Request Hook', $payload);
+
+        $this->assertIsArray($result);
+        $this->assertSame('pull_request', $result['type']);
+        $this->assertSame('feature', $result['branch']);
+        $this->assertSame('open', $result['action']);
+        $this->assertSame(1, $result['pullRequestNumber']);
+        $this->assertSame('Test MR', $result['pullRequestTitle']);
+        $this->assertSame('abc123', $result['commitHash']);
+    }
+
+    public function testGetEventUnknown(): void
+    {
+        $result = $this->vcsAdapter->getEvent('Unknown Hook', '{}');
+        $this->assertIsArray($result);
+        $this->assertEmpty($result);
+    }
+
+    public function testCreateWebhook(): void
+    {
+        $repositoryName = 'test-create-webhook-' . \uniqid();
+        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
+
+        try {
+            $webhookId = $this->vcsAdapter->createWebhook(
+                static::$owner,
+                $repositoryName,
+                'http://example.com/webhook',
+                'secret-token',
+                ['push', 'pull_request']
+            );
+
+            $this->assertIsInt($webhookId);
+            $this->assertGreaterThan(0, $webhookId);
+        } finally {
+            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
+        }
     }
 
     public function testGetRepositoryName(): void
@@ -680,10 +867,9 @@ class GitLabTest extends Base
             $this->assertIsArray($result);
             $this->assertNotEmpty($result);
 
-            $branchNames = array_column($result, 'name');
-            $this->assertContains(static::$defaultBranch, $branchNames);
-            $this->assertContains('feature-branch', $branchNames);
-            $this->assertContains('another-branch', $branchNames);
+            $this->assertContains(static::$defaultBranch, $result);
+            $this->assertContains('feature-branch', $result);
+            $this->assertContains('another-branch', $result);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
