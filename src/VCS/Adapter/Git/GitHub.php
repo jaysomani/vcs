@@ -232,7 +232,7 @@ class GitHub extends Git
             $responseBody = $response['body'] ?? [];
 
             if (!array_key_exists('items', $responseBody)) {
-                throw new Exception("Repositories list missing in the response.");
+                return ['items' => [], 'total' => 0];
             }
 
             return [
@@ -255,7 +255,7 @@ class GitHub extends Git
             $responseBody = $response['body'] ?? [];
 
             if (!array_key_exists('repositories', $responseBody)) {
-                throw new Exception("Repositories list missing in the response.");
+                return ['items' => [], 'total' => 0];
             }
 
             return [
@@ -869,7 +869,11 @@ class GitHub extends Git
             'context' => $context,
         ];
 
-        $this->call(self::METHOD_POST, $url, ['Authorization' => "Bearer $this->accessToken"], $body);
+        $response = $this->call(self::METHOD_POST, $url, ['Authorization' => "Bearer $this->accessToken"], $body);
+        $statusCode = $response['headers']['status-code'] ?? 0;
+        if ($statusCode >= 400) {
+            throw new Exception("Failed to update commit status: HTTP {$statusCode}");
+        }
     }
 
     /**

@@ -217,7 +217,10 @@ class GitLab extends Git
             ];
         }
 
-        return $repositories;
+        return [
+            'items' => $repositories,
+            'total' => (int) ($responseHeaders['x-total'] ?? count($repositories)),
+        ];
     }
 
     public function getRepositoryName(string $repositoryId): string
