@@ -198,12 +198,12 @@ class GitLab extends Git
         }
 
         if ($statusCode >= 400) {
-            return [];
+            return ['items' => [], 'total' => 0];
         }
 
         $responseBody = $response['body'] ?? [];
         if (!is_array($responseBody)) {
-            return [];
+            return ['items' => [], 'total' => 0];
         }
 
         $repositories = [];
