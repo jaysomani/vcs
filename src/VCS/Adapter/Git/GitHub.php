@@ -744,7 +744,7 @@ class GitHub extends Git
     /**
      * Lists branches using GitHub GraphQL repository.refs with prefix search and cursor pagination.
      *
-     * GraphQL refs(query:) does server-side prefix filtering, so no client-side filtering is needed.
+     * GraphQL refs(query:) does server-side substring filtering; prefix semantics are enforced client-side with str_starts_with.
      * Pass a cursor string from a previous nextCursor as $page to resume pagination; any integer
      * value is treated as the first page. perPage is clamped to [1, 100].
      *
@@ -801,7 +801,8 @@ GRAPHQL;
             return ['items' => [], 'hasNext' => false, 'nextCursor' => null];
         }
 
-        $refs = $responseBody['data']['repository']['refs'] ?? null;
+        $repository = $responseBody['data']['repository'] ?? null;
+        $refs = is_array($repository) ? ($repository['refs'] ?? null) : null;
 
         if (!is_array($refs)) {
             return ['items' => [], 'hasNext' => false, 'nextCursor' => null];
@@ -810,6 +811,11 @@ GRAPHQL;
         $edges = $refs['edges'] ?? [];
         $pageInfo = $refs['pageInfo'] ?? [];
         $hasNext = (bool) ($pageInfo['hasNextPage'] ?? false);
+
+        // GitHub refs(query:) does substring matching; enforce prefix semantics client-side.
+        if ($search !== '') {
+            $edges = array_values(array_filter($edges, fn ($edge) => str_starts_with($edge['node']['name'] ?? '', $search)));
+        }
 
         return [
             'items' => array_map(fn ($edge) => $edge['node']['name'] ?? '', $edges),
