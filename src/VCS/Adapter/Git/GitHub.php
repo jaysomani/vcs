@@ -744,7 +744,7 @@ class GitHub extends Git
     /**
      * Lists branches using GitHub GraphQL repository.refs with prefix search and cursor pagination.
      *
-     * GraphQL refs(query:) does server-side substring filtering; prefix semantics are enforced client-side with str_starts_with.
+     * GraphQL refs(query:) does server-side substring filtering — 'ranch' matches 'branch-x'.
      * Pass a cursor string from a previous nextCursor as $page to resume pagination; any integer
      * value is treated as the first page. perPage is clamped to [1, 100].
      *
@@ -811,11 +811,6 @@ GRAPHQL;
         $edges = $refs['edges'] ?? [];
         $pageInfo = $refs['pageInfo'] ?? [];
         $hasNext = (bool) ($pageInfo['hasNextPage'] ?? false);
-
-        // GitHub refs(query:) does substring matching; enforce prefix semantics client-side.
-        if ($search !== '') {
-            $edges = array_values(array_filter($edges, fn ($edge) => str_starts_with($edge['node']['name'] ?? '', $search)));
-        }
 
         return [
             'items' => array_map(fn ($edge) => $edge['node']['name'] ?? '', $edges),

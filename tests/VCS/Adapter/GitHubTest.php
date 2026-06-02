@@ -577,8 +577,9 @@ class GitHubTest extends Base
             $this->assertFalse($searchPage2['hasNext']);
             $this->assertNull($searchPage2['nextCursor']);
 
+            // GitHub refs(query:) does substring matching, so 'ranch' matches 'branch-a' and 'branch-b'
             $substringSearch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'ranch');
-            $this->assertSame([], $substringSearch['items']);
+            $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $substringSearch['items']);
             $this->assertFalse($substringSearch['hasNext']);
             $this->assertNull($substringSearch['nextCursor']);
         } finally {
