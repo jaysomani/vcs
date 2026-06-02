@@ -788,7 +788,7 @@ GRAPHQL;
             'variables' => [
                 'owner' => $owner,
                 'name' => $repositoryName,
-                'first' => $perPage + 1,
+                'first' => $perPage,
                 'after' => $cursor,
                 'query' => $search !== '' ? $search : null,
             ],
@@ -808,13 +808,13 @@ GRAPHQL;
         }
 
         $edges = $refs['edges'] ?? [];
-        $hasNext = count($edges) > $perPage;
-        $edges = array_slice($edges, 0, $perPage);
+        $pageInfo = $refs['pageInfo'] ?? [];
+        $hasNext = (bool) ($pageInfo['hasNextPage'] ?? false);
 
         return [
             'items' => array_map(fn ($edge) => $edge['node']['name'] ?? '', $edges),
             'hasNext' => $hasNext,
-            'nextCursor' => $hasNext ? ($edges[$perPage - 1]['cursor'] ?? null) : null,
+            'nextCursor' => $hasNext ? ($pageInfo['endCursor'] ?? null) : null,
         ];
     }
 
