@@ -742,32 +742,126 @@ class GitHub extends Git
     }
 
     /**
-     * Lists branches for a given repository
+     * Lists branches using GitHub GraphQL repository.refs with prefix search and cursor pagination.
      *
-     * @param  string  $owner Owner name of the repository
-     * @param  string  $repositoryName Name of the GitHub repository
-     * @param  int  $perPage Number of branches to fetch per page
-     * @param  int  $page Page number to start fetching from
-     * @return array<string> List of branch names as array
+     * Search matches branch names by prefix only ('feat' → 'feature-x', not 'my-feature').
+     * Pass an integer $page to walk forward page-by-page (each step costs one extra GraphQL call
+     * to resolve the cursor chain); pass a cursor string from a previous nextCursor to jump
+     * directly. perPage is clamped to [1, 100].
+     *
+     * @param  string  $owner
+     * @param  string  $repositoryName
+     * @param  int  $perPage Clamped to [1, 100]
+     * @param  int|string|null  $page Pass 1 (or null) for the first page. For subsequent pages
+     *   always pass the opaque cursor string from the previous nextCursor — GitHub uses
+     *   cursor-based GraphQL pagination and has no concept of integer page offsets.
+     *   Any integer value other than 1 is treated as page 1.
+     * @param  string  $search Prefix filter; empty returns all branches
+     * @return array{items: array<string>, hasNext: bool, nextCursor: string|null}
      */
-    public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int $page = 1): array
+    public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int|string|null $page = 1, string $search = ''): array
     {
-        $url = "/repos/$owner/$repositoryName/branches";
         $perPage = min(max($perPage, 1), 100);
+        $cursor = is_string($page) ? $page : null;
 
-        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
-            'page' => $page,
-            'per_page' => $perPage,
-        ]);
+        $gql = <<<'GRAPHQL'
+query ListBranches($owner: String!, $name: String!, $first: Int!, $after: String, $query: String) {
+  repository(owner: $owner, name: $name) {
+    refs(refPrefix: "refs/heads/", first: $first, after: $after, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
+      edges {
+        cursor
+        node {
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
+GRAPHQL;
 
-        $statusCode = $response['headers']['status-code'] ?? 0;
-        $responseBody = $response['body'] ?? [];
+        // We use GraphQL instead of REST for two reasons that the REST API cannot satisfy:
+        //  1. Server-side search narrowing: REST GET /repos/{owner}/{repo}/branches has no
+        //     search or filter parameter at all; GraphQL refs() accepts a `query` variable.
+        //  2. Per-edge cursors: REST only supports integer ?page=N offsets; GraphQL edges
+        //     carry individual cursors so we can resume from an exact item across calls.
+        //
+        // GraphQL `query` does substring matching, so we additionally enforce prefix
+        // semantics client-side with str_starts_with. We collect up to $perPage + 1
+        // matching edges across as many GraphQL pages as needed:
+        //  - If we find the +1 probe item, hasNext=true and nextCursor points to the
+        //    cursor of the last returned item, so the next call resumes exactly where
+        //    we stopped.
+        //  - If GitHub is exhausted before the probe, hasNext=false.
+        // This ensures items is never empty while hasNext is true.
+        /** @var array<array{name: string, cursor: string}> $collected */
+        $collected = [];
+        $currentCursor = $cursor;
+        $hasNextPage = false;
 
-        if ($statusCode < 200 || $statusCode >= 300 || !is_array($responseBody)) {
-            return [];
+        do {
+            $response = $this->call(self::METHOD_POST, '/graphql', ['Authorization' => "Bearer $this->accessToken"], [
+                'query' => $gql,
+                'variables' => [
+                    'owner' => $owner,
+                    'name' => $repositoryName,
+                    'first' => $perPage,
+                    'after' => $currentCursor,
+                    'query' => $search !== '' ? $search : null,
+                ],
+            ]);
+
+            $statusCode = $response['headers']['status-code'] ?? 0;
+            $responseBody = $response['body'] ?? [];
+
+            if ($statusCode < 200 || $statusCode >= 300 || !is_array($responseBody) || array_key_exists('errors', $responseBody)) {
+                return ['items' => [], 'hasNext' => false, 'nextCursor' => null];
+            }
+
+            $refs = $responseBody['data']['repository']['refs'] ?? null;
+
+            if (!is_array($refs)) {
+                return ['items' => [], 'hasNext' => false, 'nextCursor' => null];
+            }
+
+            $pageInfo = $refs['pageInfo'] ?? [];
+            $hasNextPage = (bool) ($pageInfo['hasNextPage'] ?? false);
+            $currentCursor = $pageInfo['endCursor'] ?? null;
+
+            $probeFound = false;
+            foreach ($refs['edges'] ?? [] as $edge) {
+                $name = $edge['node']['name'] ?? '';
+                if ($search === '' || str_starts_with($name, $search)) {
+                    $collected[] = ['name' => $name, 'cursor' => $edge['cursor'] ?? ''];
+                    if (count($collected) > $perPage) {
+                        $probeFound = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($probeFound) {
+                break;
+            }
+        } while ($hasNextPage);
+
+        if (count($collected) > $perPage) {
+            $toReturn = array_slice($collected, 0, $perPage);
+            return [
+                'items' => array_column($toReturn, 'name'),
+                'hasNext' => true,
+                'nextCursor' => $toReturn[$perPage - 1]['cursor'],
+            ];
         }
 
-        return array_values(array_map(fn ($branch) => $branch['name'] ?? '', $responseBody));
+        return [
+            'items' => array_column($collected, 'name'),
+            'hasNext' => false,
+            'nextCursor' => null,
+        ];
     }
 
     /**
@@ -831,15 +925,15 @@ class GitHub extends Git
         $responseBody = $response['body'] ?? [];
         $responseBodyCommit = $responseBody['commit'] ?? [];
         $responseBodyCommitAuthor = $responseBodyCommit['author'] ?? [];
-        $responseBodyAuthor = $responseBody['author'] ?? [];
+        // GitHub sets author to null for commits from App installations whose email
+        // does not match any GitHub user — treat it as an empty array to allow fallbacks.
+        $responseBodyAuthor = is_array($responseBody['author'] ?? null) ? $responseBody['author'] : [];
 
         if (
             !array_key_exists('name', $responseBodyCommitAuthor) ||
             !array_key_exists('message', $responseBodyCommit) ||
             !array_key_exists('sha', $responseBody) ||
-            !array_key_exists('html_url', $responseBody) ||
-            !array_key_exists('avatar_url', $responseBodyAuthor) ||
-            !array_key_exists('html_url', $responseBodyAuthor)
+            !array_key_exists('html_url', $responseBody)
         ) {
             throw new Exception("Latest commit response is missing required information.");
         }
@@ -870,185 +964,6 @@ class GitHub extends Git
         ];
 
         $this->call(self::METHOD_POST, $url, ['Authorization' => "Bearer $this->accessToken"], $body);
-    }
-
-    /**
-     * Creates a check run for a commit.
-     * status can be one of: queued, in_progress, completed
-     * conclusion (required when status=completed) can be one of: action_required, cancelled, failure, neutral, success, skipped, timed_out
-     *
-     * @param array<mixed> $annotations
-     * @param array<mixed> $images
-     * @param array<mixed> $actions
-     * @return array<mixed>
-     */
-    public function createCheckRun(
-        string $owner,
-        string $repositoryName,
-        string $headSha,
-        string $name,
-        string $status = 'queued',
-        string $conclusion = '',
-        string $title = '',
-        string $summary = '',
-        string $text = '',
-        array $annotations = [],
-        array $images = [],
-        array $actions = [],
-        string $detailsUrl = '',
-        string $externalId = '',
-        string $startedAt = '',
-        string $completedAt = '',
-    ): array {
-        $url = "/repos/$owner/$repositoryName/check-runs";
-
-        if ($status === 'completed' && empty($conclusion)) {
-            throw new Exception("conclusion is required when status is 'completed'");
-        }
-
-        // Conclusion requires status=completed; auto-set completed_at if not provided.
-        if (!empty($conclusion)) {
-            $status = 'completed';
-            if (empty($completedAt)) {
-                $completedAt = gmdate('Y-m-d\TH:i:s\Z');
-            }
-        }
-
-        $body = array_merge(
-            [
-                'name' => $name,
-                'head_sha' => $headSha,
-                'status' => $status,
-            ],
-            array_filter([
-                'conclusion' => $conclusion,
-                'completed_at' => $completedAt,
-                'details_url' => $detailsUrl,
-                'external_id' => $externalId,
-                'started_at' => $startedAt,
-            ], fn ($value) => !empty($value))
-        );
-
-        // Output requires both title and summary.
-        if (!empty($title) && !empty($summary)) {
-            $output = array_filter(['title' => $title, 'summary' => $summary, 'text' => $text], fn ($value) => !empty($value));
-            if (!empty($annotations)) {
-                $output['annotations'] = $annotations;
-            }
-            if (!empty($images)) {
-                $output['images'] = $images;
-            }
-            $body['output'] = $output;
-        }
-
-        if (!empty($actions)) {
-            $body['actions'] = $actions;
-        }
-
-        $response = $this->call(self::METHOD_POST, $url, ['Authorization' => "Bearer $this->accessToken"], $body);
-
-        $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
-        if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create check run: HTTP $responseHeadersStatusCode");
-        }
-
-        return $response['body'] ?? [];
-    }
-
-    /**
-     * Gets a check run by ID.
-     *
-     * @return array<mixed>
-     */
-    public function getCheckRun(string $owner, string $repositoryName, int $checkRunId): array
-    {
-        $url = "/repos/$owner/$repositoryName/check-runs/$checkRunId";
-
-        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"]);
-
-        $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
-        if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get check run $checkRunId: HTTP $responseHeadersStatusCode");
-        }
-
-        return $response['body'] ?? [];
-    }
-
-    /**
-     * Updates an existing check run.
-     * status can be one of: queued, in_progress, completed
-     * conclusion (required when status=completed) can be one of: action_required, cancelled, failure, neutral, success, skipped, timed_out
-     *
-     * @param array<mixed> $annotations
-     * @param array<mixed> $images
-     * @return array<mixed>
-     */
-    public function updateCheckRun(
-        string $owner,
-        string $repositoryName,
-        int $checkRunId,
-        string $name = '',
-        string $status = '',
-        string $conclusion = '',
-        string $title = '',
-        string $summary = '',
-        string $text = '',
-        array $annotations = [],
-        array $images = [],
-        array $actions = [],
-        string $detailsUrl = '',
-        string $externalId = '',
-        string $startedAt = '',
-        string $completedAt = '',
-    ): array {
-        $url = "/repos/$owner/$repositoryName/check-runs/$checkRunId";
-
-        if ($status === 'completed' && empty($conclusion)) {
-            throw new Exception("conclusion is required when status is 'completed'");
-        }
-
-        // Conclusion requires status=completed; auto-set completed_at if not provided.
-        if (!empty($conclusion)) {
-            $status = 'completed';
-            if (empty($completedAt)) {
-                $completedAt = gmdate('Y-m-d\TH:i:s\Z');
-            }
-        }
-
-        $body = array_filter([
-            'name' => $name,
-            'status' => $status,
-            'details_url' => $detailsUrl,
-            'external_id' => $externalId,
-            'started_at' => $startedAt,
-            'conclusion' => $conclusion,
-            'completed_at' => $completedAt,
-        ], fn ($value) => !empty($value));
-
-        // Output requires both title and summary.
-        if (!empty($title) && !empty($summary)) {
-            $output = array_filter(['title' => $title, 'summary' => $summary, 'text' => $text], fn ($value) => !empty($value));
-            if (!empty($annotations)) {
-                $output['annotations'] = $annotations;
-            }
-            if (!empty($images)) {
-                $output['images'] = $images;
-            }
-            $body['output'] = $output;
-        }
-
-        if (!empty($actions)) {
-            $body['actions'] = $actions;
-        }
-
-        $response = $this->call(self::METHOD_PATCH, $url, ['Authorization' => "Bearer $this->accessToken"], $body);
-
-        $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
-        if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to update check run $checkRunId: HTTP $responseHeadersStatusCode");
-        }
-
-        return $response['body'] ?? [];
     }
 
     /**

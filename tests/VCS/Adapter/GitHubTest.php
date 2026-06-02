@@ -473,11 +473,17 @@ class GitHubTest extends Base
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
 
-            $branches = $this->vcsAdapter->listBranches(static::$owner, $repositoryName);
+            /** @var GitHub $adapter */
+            $adapter = $this->vcsAdapter;
+            $branches = $adapter->listBranches(static::$owner, $repositoryName);
 
             $this->assertIsArray($branches);
-            $this->assertNotEmpty($branches);
-            $this->assertContains(static::$defaultBranch, $branches);
+            $this->assertArrayHasKey('items', $branches);
+            $this->assertArrayHasKey('hasNext', $branches);
+            $this->assertNotEmpty($branches['items']);
+            $this->assertFalse($branches['hasNext']);
+            $this->assertNull($branches['nextCursor']);
+            $this->assertContains(static::$defaultBranch, $branches['items']);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
@@ -540,14 +546,41 @@ class GitHubTest extends Base
             /** @var GitHub $adapter */
             $adapter = $this->vcsAdapter;
 
+            // Cursor-based navigation: always use nextCursor from the previous response
             $page1 = $adapter->listBranches(static::$owner, $repositoryName, 1, 1);
-            $this->assertSame(['branch-a'], $page1);
+            $this->assertSame(['branch-a'], $page1['items']);
+            $this->assertTrue($page1['hasNext']);
+            $this->assertNotEmpty($page1['nextCursor']);
 
-            $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, 2);
-            $this->assertSame(['branch-b'], $page2);
+            $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, $page1['nextCursor']);
+            $this->assertSame(['branch-b'], $page2['items']);
+            $this->assertTrue($page2['hasNext']);
+            $this->assertNotEmpty($page2['nextCursor']);
+
+            $page3 = $adapter->listBranches(static::$owner, $repositoryName, 1, $page2['nextCursor']);
+            $this->assertSame([static::$defaultBranch], $page3['items']);
+            $this->assertFalse($page3['hasNext']);
+            $this->assertNull($page3['nextCursor']);
 
             $all = $adapter->listBranches(static::$owner, $repositoryName, 100, 1);
-            $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all);
+            $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all['items']);
+            $this->assertFalse($all['hasNext']);
+            $this->assertNull($all['nextCursor']);
+
+            $searchPage1 = $adapter->listBranches(static::$owner, $repositoryName, 1, 1, 'branch');
+            $this->assertSame(['branch-a'], $searchPage1['items']);
+            $this->assertTrue($searchPage1['hasNext']);
+            $this->assertNotEmpty($searchPage1['nextCursor']);
+
+            $searchPage2 = $adapter->listBranches(static::$owner, $repositoryName, 1, $searchPage1['nextCursor'], 'branch');
+            $this->assertSame(['branch-b'], $searchPage2['items']);
+            $this->assertFalse($searchPage2['hasNext']);
+            $this->assertNull($searchPage2['nextCursor']);
+
+            $substringSearch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'ranch');
+            $this->assertSame([], $substringSearch['items']);
+            $this->assertFalse($substringSearch['hasNext']);
+            $this->assertNull($substringSearch['nextCursor']);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
@@ -559,10 +592,14 @@ class GitHubTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         try {
-            $branches = $this->vcsAdapter->listBranches(static::$owner, $repositoryName);
+            /** @var GitHub $adapter */
+            $adapter = $this->vcsAdapter;
+            $branches = $adapter->listBranches(static::$owner, $repositoryName);
 
             $this->assertIsArray($branches);
-            $this->assertEmpty($branches);
+            $this->assertSame([], $branches['items']);
+            $this->assertFalse($branches['hasNext']);
+            $this->assertNull($branches['nextCursor']);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
@@ -570,10 +607,14 @@ class GitHubTest extends Base
 
     public function testListBranchesNonExistingRepository(): void
     {
-        $branches = $this->vcsAdapter->listBranches(static::$owner, 'non-existing-repo-' . \uniqid());
+        /** @var GitHub $adapter */
+        $adapter = $this->vcsAdapter;
+        $branches = $adapter->listBranches(static::$owner, 'non-existing-repo-' . \uniqid());
 
         $this->assertIsArray($branches);
-        $this->assertEmpty($branches);
+        $this->assertSame([], $branches['items']);
+        $this->assertFalse($branches['hasNext']);
+        $this->assertNull($branches['nextCursor']);
     }
 
     public function testGetLatestCommit(): void
@@ -644,289 +685,6 @@ class GitHubTest extends Base
             );
 
             $this->assertTrue(true);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testCreateCheckRun(): void
-    {
-        $repositoryName = 'test-create-check-run-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
-            $commitHash = $commit['commitHash'];
-
-            $checkRun = $this->vcsAdapter->createCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                headSha: $commitHash,
-                name: 'ci/build',
-                status: 'in_progress',
-                startedAt: gmdate('Y-m-d\TH:i:s\Z'),
-            );
-
-            $this->assertArrayHasKey('id', $checkRun);
-            $this->assertIsInt($checkRun['id']);
-            $this->assertEquals('ci/build', $checkRun['name']);
-            $this->assertEquals('in_progress', $checkRun['status']);
-            $this->assertNull($checkRun['conclusion']);
-            $this->assertEquals($commitHash, $checkRun['head_sha']);
-            $this->assertNotEmpty($checkRun['url']);
-            $this->assertNotEmpty($checkRun['html_url']);
-            $this->assertNotEmpty($checkRun['started_at']);
-            $this->assertNull($checkRun['completed_at']);
-
-            $fetched = $this->vcsAdapter->getCheckRun(static::$owner, $repositoryName, $checkRun['id']);
-            $this->assertEquals($checkRun['id'], $fetched['id']);
-            $this->assertEquals('ci/build', $fetched['name']);
-            $this->assertEquals('in_progress', $fetched['status']);
-            $this->assertNull($fetched['conclusion']);
-            $this->assertEquals($commitHash, $fetched['head_sha']);
-            $this->assertNotEmpty($fetched['url']);
-            $this->assertNotEmpty($fetched['html_url']);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testCreateCheckRunWithInvalidRepository(): void
-    {
-        $this->expectException(\Exception::class);
-        $this->vcsAdapter->createCheckRun(
-            owner: static::$owner,
-            repositoryName: 'non-existing-repository-' . \uniqid(),
-            headSha: 'a' . str_repeat('0', 39),
-            name: 'ci/build',
-        );
-    }
-
-    public function testGetCheckRunWithInvalidId(): void
-    {
-        $repositoryName = 'test-get-check-run-invalid-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->expectException(\Exception::class);
-            $this->vcsAdapter->getCheckRun(static::$owner, $repositoryName, 999999999);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testCreateTwoCheckRunsOnSameCommit(): void
-    {
-        $repositoryName = 'test-two-check-runs-same-commit-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
-            $commitHash = $commit['commitHash'];
-
-            $first = $this->vcsAdapter->createCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                headSha: $commitHash,
-                name: 'ci/build',
-                status: 'in_progress',
-            );
-
-            $second = $this->vcsAdapter->createCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                headSha: $commitHash,
-                name: 'ci/build',
-                status: 'in_progress',
-            );
-
-            $this->assertArrayHasKey('id', $first);
-            $this->assertArrayHasKey('id', $second);
-            $this->assertNotEquals($first['id'], $second['id']);
-            $this->assertEquals($commitHash, $first['head_sha']);
-            $this->assertEquals($commitHash, $second['head_sha']);
-            $this->assertEquals('ci/build', $first['name']);
-            $this->assertEquals('ci/build', $second['name']);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testCreateCheckRunsWithSameNameOnDifferentCommits(): void
-    {
-        $repositoryName = 'test-check-runs-different-commits-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $commit1 = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
-            $commitHash1 = $commit1['commitHash'];
-
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'second.md', '# Second');
-            $commit2 = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
-            $commitHash2 = $commit2['commitHash'];
-
-            $first = $this->vcsAdapter->createCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                headSha: $commitHash1,
-                name: 'ci/build',
-                status: 'in_progress',
-            );
-
-            $second = $this->vcsAdapter->createCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                headSha: $commitHash2,
-                name: 'ci/build',
-                status: 'in_progress',
-            );
-
-            $this->assertArrayHasKey('id', $first);
-            $this->assertArrayHasKey('id', $second);
-            $this->assertNotEquals($first['id'], $second['id']);
-            $this->assertEquals($commitHash1, $first['head_sha']);
-            $this->assertEquals($commitHash2, $second['head_sha']);
-            $this->assertEquals('ci/build', $first['name']);
-            $this->assertEquals('ci/build', $second['name']);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testCreateCheckRunCompleted(): void
-    {
-        $repositoryName = 'test-create-check-run-completed-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
-            $commitHash = $commit['commitHash'];
-
-            $checkRun = $this->vcsAdapter->createCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                headSha: $commitHash,
-                name: 'ci/build',
-                conclusion: 'success',
-                title: 'Build passed',
-                summary: 'All checks passed successfully.',
-            );
-
-            $this->assertArrayHasKey('id', $checkRun);
-            $this->assertIsInt($checkRun['id']);
-            $this->assertEquals('ci/build', $checkRun['name']);
-            $this->assertEquals('completed', $checkRun['status']);
-            $this->assertEquals('success', $checkRun['conclusion']);
-            $this->assertEquals($commitHash, $checkRun['head_sha']);
-            $this->assertNotEmpty($checkRun['url']);
-            $this->assertNotEmpty($checkRun['html_url']);
-            $this->assertNotEmpty($checkRun['completed_at']);
-            $this->assertEquals('Build passed', $checkRun['output']['title']);
-            $this->assertEquals('All checks passed successfully.', $checkRun['output']['summary']);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testUpdateCheckRun(): void
-    {
-        $repositoryName = 'test-update-check-run-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
-            $commitHash = $commit['commitHash'];
-
-            $checkRun = $this->vcsAdapter->createCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                headSha: $commitHash,
-                name: 'ci/build',
-                status: 'in_progress',
-                startedAt: gmdate('Y-m-d\TH:i:s\Z'),
-            );
-
-            $this->assertArrayHasKey('id', $checkRun);
-            $this->assertEquals('in_progress', $checkRun['status']);
-
-            $updated = $this->vcsAdapter->updateCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                checkRunId: $checkRun['id'],
-                status: 'completed',
-                conclusion: 'neutral',
-                title: 'Deployment skipped',
-                summary: 'Deployment skipped because the branch does not match the configured branch triggers.',
-                completedAt: gmdate('Y-m-d\TH:i:s\Z'),
-            );
-
-            $this->assertEquals($checkRun['id'], $updated['id']);
-            $this->assertEquals('completed', $updated['status']);
-            $this->assertEquals('neutral', $updated['conclusion']);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testUpdateCheckRunWithInvalidRepository(): void
-    {
-        $this->expectException(\Exception::class);
-        $this->vcsAdapter->updateCheckRun(
-            owner: static::$owner,
-            repositoryName: 'non-existing-repository-' . \uniqid(),
-            checkRunId: 999999999,
-            conclusion: 'success',
-        );
-    }
-
-    public function testUpdateCheckRunWithInvalidId(): void
-    {
-        $repositoryName = 'test-update-check-run-invalid-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->expectException(\Exception::class);
-            $this->vcsAdapter->updateCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                checkRunId: 999999999,
-                conclusion: 'success',
-            );
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testUpdateCheckRunWithMissingConclusion(): void
-    {
-        $repositoryName = 'test-update-check-run-no-conclusion-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
-            $commitHash = $commit['commitHash'];
-
-            $checkRun = $this->vcsAdapter->createCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                headSha: $commitHash,
-                name: 'ci/build',
-                status: 'in_progress',
-            );
-
-            $this->expectException(\Exception::class);
-            $this->vcsAdapter->updateCheckRun(
-                owner: static::$owner,
-                repositoryName: $repositoryName,
-                checkRunId: $checkRun['id'],
-                status: 'completed',
-            );
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
