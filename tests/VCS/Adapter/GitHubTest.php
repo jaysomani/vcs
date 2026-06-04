@@ -546,12 +546,19 @@ class GitHubTest extends Base
             $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, 2);
             $this->assertSame(['branch-b'], $page2);
 
+            $page3 = $adapter->listBranches(static::$owner, $repositoryName, 1, 3);
+            $this->assertSame([static::$defaultBranch], $page3);
+
             $all = $adapter->listBranches(static::$owner, $repositoryName, 100, 1);
             $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all);
 
             // Search filters branches by substring server-side
             $searchResults = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'branch');
             $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $searchResults);
+
+            // 'ranch' is a substring of 'branch-a' and 'branch-b'
+            $substringSearch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'ranch');
+            $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $substringSearch);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
