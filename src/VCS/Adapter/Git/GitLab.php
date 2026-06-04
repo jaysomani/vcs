@@ -570,7 +570,7 @@ class GitLab extends Git
             $namespace = $responseBody['namespace'] ?? [];
             return $namespace['path'] ?? '';
         }
-    
+
         $url = "/user";
         $response = $this->call(self::METHOD_GET, $url, ['PRIVATE-TOKEN' => $this->accessToken]);
         $responseHeaders = $response['headers'] ?? [];
