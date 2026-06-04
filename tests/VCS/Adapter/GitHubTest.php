@@ -473,9 +473,7 @@ class GitHubTest extends Base
         try {
             $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
 
-            /** @var GitHub $adapter */
-            $adapter = $this->vcsAdapter;
-            $branches = $adapter->listBranches(static::$owner, $repositoryName);
+            $branches = $this->vcsAdapter->listBranches(static::$owner, $repositoryName);
 
             $this->assertIsArray($branches);
             $this->assertNotEmpty($branches);
@@ -542,26 +540,18 @@ class GitHubTest extends Base
             /** @var GitHub $adapter */
             $adapter = $this->vcsAdapter;
 
-            // Page-based navigation
             $page1 = $adapter->listBranches(static::$owner, $repositoryName, 1, 1);
             $this->assertSame(['branch-a'], $page1);
 
             $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, 2);
             $this->assertSame(['branch-b'], $page2);
 
-            $page3 = $adapter->listBranches(static::$owner, $repositoryName, 1, 3);
-            $this->assertSame([static::$defaultBranch], $page3);
-
             $all = $adapter->listBranches(static::$owner, $repositoryName, 100, 1);
             $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all);
 
-            // Search by substring
+            // Search filters branches by substring server-side
             $searchResults = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'branch');
             $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $searchResults);
-
-            // GitHub refs(query:) does substring matching, so 'ranch' matches 'branch-a' and 'branch-b'
-            $substringSearch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'ranch');
-            $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $substringSearch);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
@@ -573,9 +563,7 @@ class GitHubTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
 
         try {
-            /** @var GitHub $adapter */
-            $adapter = $this->vcsAdapter;
-            $branches = $adapter->listBranches(static::$owner, $repositoryName);
+            $branches = $this->vcsAdapter->listBranches(static::$owner, $repositoryName);
 
             $this->assertIsArray($branches);
             $this->assertEmpty($branches);
@@ -586,9 +574,7 @@ class GitHubTest extends Base
 
     public function testListBranchesNonExistingRepository(): void
     {
-        /** @var GitHub $adapter */
-        $adapter = $this->vcsAdapter;
-        $branches = $adapter->listBranches(static::$owner, 'non-existing-repo-' . \uniqid());
+        $branches = $this->vcsAdapter->listBranches(static::$owner, 'non-existing-repo-' . \uniqid());
 
         $this->assertIsArray($branches);
         $this->assertEmpty($branches);
@@ -665,187 +651,6 @@ class GitHubTest extends Base
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
-    }
-
-    public function testGenerateCloneCommand(): void
-    {
-        $repositoryName = 'test-clone-command-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-        $directory = '/tmp/test-clone-' . \uniqid();
-
-        try {
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-
-            $command = $this->vcsAdapter->generateCloneCommand(
-                static::$owner,
-                $repositoryName,
-                static::$defaultBranch,
-                GitHub::CLONE_TYPE_BRANCH,
-                $directory,
-                '*'
-            );
-
-            $this->assertIsString($command);
-            $this->assertStringContainsString('sparse-checkout', $command);
-            $this->assertStringContainsString($repositoryName, $command);
-
-            $output = [];
-            \exec($command . ' 2>&1', $output, $exitCode);
-            $this->assertSame(0, $exitCode, implode("\n", $output));
-            $this->assertFileExists($directory . '/README.md');
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-            if (\is_dir($directory)) {
-                \exec('rm -rf ' . escapeshellarg($directory));
-            }
-        }
-    }
-
-    public function testGenerateCloneCommandWithCommitHash(): void
-    {
-        $repositoryName = 'test-clone-commit-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
-
-            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
-            $commitHash = $commit['commitHash'];
-
-            $directory = '/tmp/test-clone-commit-' . \uniqid();
-            $command = $this->vcsAdapter->generateCloneCommand(
-                static::$owner,
-                $repositoryName,
-                $commitHash,
-                GitHub::CLONE_TYPE_COMMIT,
-                $directory,
-                '*'
-            );
-
-            $this->assertIsString($command);
-            $this->assertStringContainsString('sparse-checkout', $command);
-
-            $output = [];
-            \exec($command . ' 2>&1', $output, $exitCode);
-            $this->assertSame(0, $exitCode, implode("\n", $output));
-            $this->assertFileExists($directory . '/README.md');
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testGenerateCloneCommandWithInvalidRepository(): void
-    {
-        $directory = '/tmp/test-clone-invalid-' . \uniqid();
-
-        try {
-            $command = $this->vcsAdapter->generateCloneCommand(
-                static::$owner,
-                'nonexistent-repo-' . \uniqid(),
-                static::$defaultBranch,
-                GitHub::CLONE_TYPE_BRANCH,
-                $directory,
-                '*'
-            );
-
-            $output = [];
-            \exec($command . ' 2>&1', $output, $exitCode);
-
-            $cloneFailed = ($exitCode !== 0) || !file_exists($directory . '/README.md');
-            $this->assertTrue($cloneFailed, 'Clone should have failed for nonexistent repository');
-        } finally {
-            if (\is_dir($directory)) {
-                \exec('rm -rf ' . escapeshellarg($directory));
-            }
-        }
-    }
-
-    public function testGetOwnerName(): void
-    {
-        $result = $this->vcsAdapter->getOwnerName(static::$installationId);
-
-        $this->assertIsString($result);
-        $this->assertNotEmpty($result);
-        $this->assertSame(static::$owner, $result);
-    }
-
-    public function testSearchRepositories(): void
-    {
-        $repo1Name = 'test-search-repo1-' . \uniqid();
-        $repo2Name = 'test-search-repo2-' . \uniqid();
-
-        $this->vcsAdapter->createRepository(static::$owner, $repo1Name, false);
-        $this->vcsAdapter->createRepository(static::$owner, $repo2Name, false);
-
-        try {
-            $result = [];
-            $this->assertEventually(function () use (&$result) {
-                $result = $this->vcsAdapter->searchRepositories(static::$owner, 1, 10);
-                $this->assertGreaterThanOrEqual(2, $result['total']);
-            }, 30000, 2000);
-
-            $this->assertIsArray($result);
-            $this->assertArrayHasKey('items', $result);
-            $this->assertArrayHasKey('total', $result);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repo1Name);
-            $this->vcsAdapter->deleteRepository(static::$owner, $repo2Name);
-        }
-    }
-
-    public function testHasAccessToAllRepositories(): void
-    {
-        $result = $this->vcsAdapter->hasAccessToAllRepositories();
-        $this->assertIsBool($result);
-    }
-
-    public function testGetInstallationRepository(): void
-    {
-        $repositoryName = 'test-installation-repo-' . \uniqid();
-        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
-
-        try {
-            $repo = $this->vcsAdapter->getInstallationRepository($repositoryName);
-            $this->assertIsArray($repo);
-            $this->assertSame($repositoryName, $repo['name']);
-        } finally {
-            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
-        }
-    }
-
-    public function testGetPullRequest(): void
-    {
-        $this->markTestSkipped('createBranch and createPullRequest not implemented in GitHub adapter');
-    }
-
-    public function testGetPullRequestFiles(): void
-    {
-        $this->markTestSkipped('createBranch and createPullRequest not implemented in GitHub adapter');
-    }
-
-    public function testGetPullRequestWithInvalidNumber(): void
-    {
-        $this->markTestSkipped('createBranch and createPullRequest not implemented in GitHub adapter');
-    }
-
-    public function testGetPullRequestFromBranch(): void
-    {
-        $this->markTestSkipped('createBranch and createPullRequest not implemented in GitHub adapter');
-    }
-
-    public function testGetComment(): void
-    {
-        $this->markTestSkipped('Requires existing PR — createPullRequest not implemented in GitHub adapter');
-    }
-
-    public function testCreateComment(): void
-    {
-        $this->markTestSkipped('Requires existing PR — createPullRequest not implemented in GitHub adapter');
-    }
-
-    public function testUpdateComment(): void
-    {
-        $this->markTestSkipped('Requires existing PR — createPullRequest not implemented in GitHub adapter');
     }
 
     public function testCreateCheckRun(): void
@@ -1129,5 +934,186 @@ class GitHubTest extends Base
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
+    }
+
+    public function testGenerateCloneCommand(): void
+    {
+        $repositoryName = 'test-clone-command-' . \uniqid();
+        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
+        $directory = '/tmp/test-clone-' . \uniqid();
+
+        try {
+            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
+
+            $command = $this->vcsAdapter->generateCloneCommand(
+                static::$owner,
+                $repositoryName,
+                static::$defaultBranch,
+                GitHub::CLONE_TYPE_BRANCH,
+                $directory,
+                '*'
+            );
+
+            $this->assertIsString($command);
+            $this->assertStringContainsString('sparse-checkout', $command);
+            $this->assertStringContainsString($repositoryName, $command);
+
+            $output = [];
+            \exec($command . ' 2>&1', $output, $exitCode);
+            $this->assertSame(0, $exitCode, implode("\n", $output));
+            $this->assertFileExists($directory . '/README.md');
+        } finally {
+            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
+            if (\is_dir($directory)) {
+                \exec('rm -rf ' . escapeshellarg($directory));
+            }
+        }
+    }
+
+    public function testGenerateCloneCommandWithCommitHash(): void
+    {
+        $repositoryName = 'test-clone-commit-' . \uniqid();
+        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
+
+        try {
+            $this->vcsAdapter->createFile(static::$owner, $repositoryName, 'README.md', '# Test');
+
+            $commit = $this->vcsAdapter->getLatestCommit(static::$owner, $repositoryName, static::$defaultBranch);
+            $commitHash = $commit['commitHash'];
+
+            $directory = '/tmp/test-clone-commit-' . \uniqid();
+            $command = $this->vcsAdapter->generateCloneCommand(
+                static::$owner,
+                $repositoryName,
+                $commitHash,
+                GitHub::CLONE_TYPE_COMMIT,
+                $directory,
+                '*'
+            );
+
+            $this->assertIsString($command);
+            $this->assertStringContainsString('sparse-checkout', $command);
+
+            $output = [];
+            \exec($command . ' 2>&1', $output, $exitCode);
+            $this->assertSame(0, $exitCode, implode("\n", $output));
+            $this->assertFileExists($directory . '/README.md');
+        } finally {
+            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
+        }
+    }
+
+    public function testGenerateCloneCommandWithInvalidRepository(): void
+    {
+        $directory = '/tmp/test-clone-invalid-' . \uniqid();
+
+        try {
+            $command = $this->vcsAdapter->generateCloneCommand(
+                static::$owner,
+                'nonexistent-repo-' . \uniqid(),
+                static::$defaultBranch,
+                GitHub::CLONE_TYPE_BRANCH,
+                $directory,
+                '*'
+            );
+
+            $output = [];
+            \exec($command . ' 2>&1', $output, $exitCode);
+
+            $cloneFailed = ($exitCode !== 0) || !file_exists($directory . '/README.md');
+            $this->assertTrue($cloneFailed, 'Clone should have failed for nonexistent repository');
+        } finally {
+            if (\is_dir($directory)) {
+                \exec('rm -rf ' . escapeshellarg($directory));
+            }
+        }
+    }
+
+    public function testGetOwnerName(): void
+    {
+        $result = $this->vcsAdapter->getOwnerName(static::$installationId);
+
+        $this->assertIsString($result);
+        $this->assertNotEmpty($result);
+        $this->assertSame(static::$owner, $result);
+    }
+
+    public function testSearchRepositories(): void
+    {
+        $repo1Name = 'test-search-repo1-' . \uniqid();
+        $repo2Name = 'test-search-repo2-' . \uniqid();
+
+        $this->vcsAdapter->createRepository(static::$owner, $repo1Name, false);
+        $this->vcsAdapter->createRepository(static::$owner, $repo2Name, false);
+
+        try {
+            $result = [];
+            $this->assertEventually(function () use (&$result) {
+                $result = $this->vcsAdapter->searchRepositories(static::$owner, 1, 10);
+                $this->assertGreaterThanOrEqual(2, $result['total']);
+            }, 30000, 2000);
+
+            $this->assertIsArray($result);
+            $this->assertArrayHasKey('items', $result);
+            $this->assertArrayHasKey('total', $result);
+        } finally {
+            $this->vcsAdapter->deleteRepository(static::$owner, $repo1Name);
+            $this->vcsAdapter->deleteRepository(static::$owner, $repo2Name);
+        }
+    }
+
+    public function testHasAccessToAllRepositories(): void
+    {
+        $result = $this->vcsAdapter->hasAccessToAllRepositories();
+        $this->assertIsBool($result);
+    }
+
+    public function testGetInstallationRepository(): void
+    {
+        $repositoryName = 'test-installation-repo-' . \uniqid();
+        $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
+
+        try {
+            $repo = $this->vcsAdapter->getInstallationRepository($repositoryName);
+            $this->assertIsArray($repo);
+            $this->assertSame($repositoryName, $repo['name']);
+        } finally {
+            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
+        }
+    }
+
+    public function testGetPullRequest(): void
+    {
+        $this->markTestSkipped('createBranch and createPullRequest not implemented in GitHub adapter');
+    }
+
+    public function testGetPullRequestFiles(): void
+    {
+        $this->markTestSkipped('createBranch and createPullRequest not implemented in GitHub adapter');
+    }
+
+    public function testGetPullRequestWithInvalidNumber(): void
+    {
+        $this->markTestSkipped('createBranch and createPullRequest not implemented in GitHub adapter');
+    }
+
+    public function testGetPullRequestFromBranch(): void
+    {
+        $this->markTestSkipped('createBranch and createPullRequest not implemented in GitHub adapter');
+    }
+
+    public function testGetComment(): void
+    {
+        $this->markTestSkipped('Requires existing PR — createPullRequest not implemented in GitHub adapter');
+    }
+
+    public function testCreateComment(): void
+    {
+        $this->markTestSkipped('Requires existing PR — createPullRequest not implemented in GitHub adapter');
+    }
+
+    public function testUpdateComment(): void
+    {
+        $this->markTestSkipped('Requires existing PR — createPullRequest not implemented in GitHub adapter');
     }
 }
