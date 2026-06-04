@@ -742,40 +742,53 @@ class GitHub extends Git
     }
 
     /**
-     * Lists branches using GitHub GraphQL repository.refs with prefix search and cursor pagination.
+     * Lists branches for a given repository, optionally filtered by a search string.
      *
+     * Uses GraphQL instead of REST because the REST endpoint has no search/filter parameter.
      * GraphQL refs(query:) does server-side substring filtering — 'ranch' matches 'branch-x'.
-     * Pass a cursor string from a previous nextCursor as $page to resume pagination; any integer
-     * value is treated as the first page. perPage is clamped to [1, 100].
-     *
-     * We use GraphQL instead of REST because:
-     *  1. REST GET /repos/{owner}/{repo}/branches has no search/filter parameter.
-     *  2. REST only supports integer page offsets; GraphQL edges carry cursors for exact resumption.
      *
      * @param  string  $owner
      * @param  string  $repositoryName
      * @param  int  $perPage Clamped to [1, 100]
-     * @param  int|string|null  $page Pass a cursor string from nextCursor to resume; integers treated as page 1
-     * @param  string  $search Prefix filter; empty returns all branches
-     * @return array{items: array<string>, hasNext: bool, nextCursor: string|null}
+     * @param  int  $page Page number (1-based)
+     * @param  string  $search Substring filter; empty returns all branches
+     * @return array<string> List of branch names
      */
-    public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int|string|null $page = 1, string $search = ''): array
+    public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int $page = 1, string $search = ''): array
     {
         $perPage = min(max($perPage, 1), 100);
-        $cursor = is_string($page) ? $page : null;
+        $after = null;
 
+        // Advance cursor to the requested page by walking forward page-by-page.
+        if ($page > 1) {
+            for ($i = 1; $i < $page; $i++) {
+                $result = $this->fetchBranchPage($owner, $repositoryName, $perPage, $after, $search);
+                if (empty($result['endCursor'])) {
+                    return [];
+                }
+                $after = $result['endCursor'];
+            }
+        }
+
+        $result = $this->fetchBranchPage($owner, $repositoryName, $perPage, $after, $search);
+        return $result['names'];
+    }
+
+    /**
+     * @return array{names: array<string>, endCursor: string|null}
+     */
+    private function fetchBranchPage(string $owner, string $repositoryName, int $perPage, ?string $after, string $search): array
+    {
         $gql = <<<'GRAPHQL'
 query ListBranches($owner: String!, $name: String!, $first: Int!, $after: String, $query: String) {
   repository(owner: $owner, name: $name) {
     refs(refPrefix: "refs/heads/", first: $first, after: $after, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
       edges {
-        cursor
         node {
           name
         }
       }
       pageInfo {
-        hasNextPage
         endCursor
       }
     }
@@ -789,7 +802,7 @@ GRAPHQL;
                 'owner' => $owner,
                 'name' => $repositoryName,
                 'first' => $perPage,
-                'after' => $cursor,
+                'after' => $after,
                 'query' => $search !== '' ? $search : null,
             ],
         ]);
@@ -798,24 +811,22 @@ GRAPHQL;
         $responseBody = $response['body'] ?? [];
 
         if ($statusCode < 200 || $statusCode >= 300 || !is_array($responseBody) || array_key_exists('errors', $responseBody)) {
-            return ['items' => [], 'hasNext' => false, 'nextCursor' => null];
+            return ['names' => [], 'endCursor' => null];
         }
 
         $repository = $responseBody['data']['repository'] ?? null;
         $refs = is_array($repository) ? ($repository['refs'] ?? null) : null;
 
         if (!is_array($refs)) {
-            return ['items' => [], 'hasNext' => false, 'nextCursor' => null];
+            return ['names' => [], 'endCursor' => null];
         }
 
         $edges = $refs['edges'] ?? [];
-        $pageInfo = $refs['pageInfo'] ?? [];
-        $hasNext = (bool) ($pageInfo['hasNextPage'] ?? false);
+        $endCursor = $refs['pageInfo']['endCursor'] ?? null;
 
         return [
-            'items' => array_map(fn ($edge) => $edge['node']['name'] ?? '', $edges),
-            'hasNext' => $hasNext,
-            'nextCursor' => $hasNext ? ($pageInfo['endCursor'] ?? null) : null,
+            'names' => array_map(fn ($edge) => $edge['node']['name'] ?? '', $edges),
+            'endCursor' => $endCursor,
         ];
     }
 

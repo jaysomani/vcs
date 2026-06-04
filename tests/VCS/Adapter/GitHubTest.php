@@ -478,12 +478,8 @@ class GitHubTest extends Base
             $branches = $adapter->listBranches(static::$owner, $repositoryName);
 
             $this->assertIsArray($branches);
-            $this->assertArrayHasKey('items', $branches);
-            $this->assertArrayHasKey('hasNext', $branches);
-            $this->assertNotEmpty($branches['items']);
-            $this->assertFalse($branches['hasNext']);
-            $this->assertNull($branches['nextCursor']);
-            $this->assertContains(static::$defaultBranch, $branches['items']);
+            $this->assertNotEmpty($branches);
+            $this->assertContains(static::$defaultBranch, $branches);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
@@ -546,42 +542,26 @@ class GitHubTest extends Base
             /** @var GitHub $adapter */
             $adapter = $this->vcsAdapter;
 
-            // Cursor-based navigation: always use nextCursor from the previous response
+            // Page-based navigation
             $page1 = $adapter->listBranches(static::$owner, $repositoryName, 1, 1);
-            $this->assertSame(['branch-a'], $page1['items']);
-            $this->assertTrue($page1['hasNext']);
-            $this->assertNotEmpty($page1['nextCursor']);
+            $this->assertSame(['branch-a'], $page1);
 
-            $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, $page1['nextCursor']);
-            $this->assertSame(['branch-b'], $page2['items']);
-            $this->assertTrue($page2['hasNext']);
-            $this->assertNotEmpty($page2['nextCursor']);
+            $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, 2);
+            $this->assertSame(['branch-b'], $page2);
 
-            $page3 = $adapter->listBranches(static::$owner, $repositoryName, 1, $page2['nextCursor']);
-            $this->assertSame([static::$defaultBranch], $page3['items']);
-            $this->assertFalse($page3['hasNext']);
-            $this->assertNull($page3['nextCursor']);
+            $page3 = $adapter->listBranches(static::$owner, $repositoryName, 1, 3);
+            $this->assertSame([static::$defaultBranch], $page3);
 
             $all = $adapter->listBranches(static::$owner, $repositoryName, 100, 1);
-            $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all['items']);
-            $this->assertFalse($all['hasNext']);
-            $this->assertNull($all['nextCursor']);
+            $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all);
 
-            $searchPage1 = $adapter->listBranches(static::$owner, $repositoryName, 1, 1, 'branch');
-            $this->assertSame(['branch-a'], $searchPage1['items']);
-            $this->assertTrue($searchPage1['hasNext']);
-            $this->assertNotEmpty($searchPage1['nextCursor']);
-
-            $searchPage2 = $adapter->listBranches(static::$owner, $repositoryName, 1, $searchPage1['nextCursor'], 'branch');
-            $this->assertSame(['branch-b'], $searchPage2['items']);
-            $this->assertFalse($searchPage2['hasNext']);
-            $this->assertNull($searchPage2['nextCursor']);
+            // Search by substring
+            $searchResults = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'branch');
+            $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $searchResults);
 
             // GitHub refs(query:) does substring matching, so 'ranch' matches 'branch-a' and 'branch-b'
             $substringSearch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'ranch');
-            $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $substringSearch['items']);
-            $this->assertFalse($substringSearch['hasNext']);
-            $this->assertNull($substringSearch['nextCursor']);
+            $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $substringSearch);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
@@ -598,9 +578,7 @@ class GitHubTest extends Base
             $branches = $adapter->listBranches(static::$owner, $repositoryName);
 
             $this->assertIsArray($branches);
-            $this->assertSame([], $branches['items']);
-            $this->assertFalse($branches['hasNext']);
-            $this->assertNull($branches['nextCursor']);
+            $this->assertEmpty($branches);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
@@ -613,9 +591,7 @@ class GitHubTest extends Base
         $branches = $adapter->listBranches(static::$owner, 'non-existing-repo-' . \uniqid());
 
         $this->assertIsArray($branches);
-        $this->assertSame([], $branches['items']);
-        $this->assertFalse($branches['hasNext']);
-        $this->assertNull($branches['nextCursor']);
+        $this->assertEmpty($branches);
     }
 
     public function testGetLatestCommit(): void
