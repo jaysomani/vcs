@@ -759,7 +759,6 @@ class GitHub extends Git
         $perPage = min(max($perPage, 1), 100);
         $after = null;
 
-        // Advance cursor to the requested page by walking forward page-by-page.
         if ($page > 1) {
             for ($i = 1; $i < $page; $i++) {
                 $result = $this->fetchBranchPage($owner, $repositoryName, $perPage, $after, $search);

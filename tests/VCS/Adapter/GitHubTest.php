@@ -552,11 +552,9 @@ class GitHubTest extends Base
             $all = $adapter->listBranches(static::$owner, $repositoryName, 100, 1);
             $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all);
 
-            // Search by substring server-side
             $searchResults = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'branch');
             $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $searchResults);
 
-            // GitHub refs(query:) does substring matching, so 'ranch' matches 'branch-a' and 'branch-b'
             $substringSearch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'ranch');
             $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $substringSearch);
         } finally {
