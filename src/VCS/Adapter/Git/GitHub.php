@@ -744,9 +744,6 @@ class GitHub extends Git
     /**
      * Lists branches for a given repository, optionally filtered by a search string.
      *
-     * Uses GraphQL instead of REST because the REST endpoint has no search/filter parameter.
-     * GraphQL refs(query:) does server-side substring filtering — 'ranch' matches 'branch-x'.
-     *
      * @param  string  $owner
      * @param  string  $repositoryName
      * @param  int  $perPage Clamped to [1, 100]
@@ -860,8 +857,6 @@ GRAPHQL;
         $responseBody = $response['body'] ?? [];
         $responseBodyCommit = $responseBody['commit'] ?? [];
         $responseBodyCommitAuthor = $responseBodyCommit['author'] ?? [];
-        // GitHub sets author to null for commits from App installations whose email
-        // does not match any GitHub user — treat it as an empty array to allow fallbacks.
         $responseBodyAuthor = is_array($responseBody['author'] ?? null) ? $responseBody['author'] : [];
 
         if (
