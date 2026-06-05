@@ -540,15 +540,6 @@ class GitHubTest extends Base
             /** @var GitHub $adapter */
             $adapter = $this->vcsAdapter;
 
-            $page1 = $adapter->listBranches(static::$owner, $repositoryName, 1, 1);
-            $this->assertSame(['branch-a'], $page1);
-
-            $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, 2);
-            $this->assertSame(['branch-b'], $page2);
-
-            $page3 = $adapter->listBranches(static::$owner, $repositoryName, 1, 3);
-            $this->assertSame([static::$defaultBranch], $page3);
-
             $all = $adapter->listBranches(static::$owner, $repositoryName, 100, 1);
             $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all);
 

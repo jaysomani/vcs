@@ -754,46 +754,11 @@ class GitHub extends Git
     public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int $page = 1, string $search = ''): array
     {
         $perPage = min(max($perPage, 1), 100);
-        $cursor = null;
-
-        if ($page > 1) {
-            $skip = ($page - 1) * $perPage;
-            $cursorGql = <<<'GRAPHQL'
-query ListBranchesCursor($owner: String!, $name: String!, $first: Int!, $query: String) {
-  repository(owner: $owner, name: $name) {
-    refs(refPrefix: "refs/heads/", first: $first, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
-      pageInfo {
-        endCursor
-        hasNextPage
-      }
-    }
-  }
-}
-GRAPHQL;
-            $cursorResponse = $this->call(self::METHOD_POST, '/graphql', ['Authorization' => "Bearer $this->accessToken"], [
-                'query' => $cursorGql,
-                'variables' => [
-                    'owner' => $owner,
-                    'name' => $repositoryName,
-                    'first' => $skip,
-                    'query' => $search !== '' ? $search : null,
-                ],
-            ]);
-
-            $cursorBody = $cursorResponse['body'] ?? [];
-            $cursorRefs = $cursorBody['data']['repository']['refs'] ?? null;
-
-            if (!is_array($cursorRefs) || !($cursorRefs['pageInfo']['hasNextPage'] ?? false)) {
-                return [];
-            }
-
-            $cursor = $cursorRefs['pageInfo']['endCursor'] ?? null;
-        }
 
         $gql = <<<'GRAPHQL'
-query ListBranches($owner: String!, $name: String!, $first: Int!, $after: String, $query: String) {
+query ListBranches($owner: String!, $name: String!, $first: Int!, $query: String) {
   repository(owner: $owner, name: $name) {
-    refs(refPrefix: "refs/heads/", first: $first, after: $after, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
+    refs(refPrefix: "refs/heads/", first: $first, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
       edges {
         node {
           name
@@ -810,7 +775,6 @@ GRAPHQL;
                 'owner' => $owner,
                 'name' => $repositoryName,
                 'first' => $perPage,
-                'after' => $cursor,
                 'query' => $search !== '' ? $search : null,
             ],
         ]);
