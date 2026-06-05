@@ -757,38 +757,15 @@ class GitHub extends Git
     public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int $page = 1, string $search = ''): array
     {
         $perPage = min(max($perPage, 1), 100);
-        $after = null;
 
-        if ($page > 1) {
-            for ($i = 1; $i < $page; $i++) {
-                $result = $this->fetchBranchPage($owner, $repositoryName, $perPage, $after, $search);
-                if (empty($result['endCursor'])) {
-                    return [];
-                }
-                $after = $result['endCursor'];
-            }
-        }
-
-        $result = $this->fetchBranchPage($owner, $repositoryName, $perPage, $after, $search);
-        return $result['names'];
-    }
-
-    /**
-     * @return array{names: array<string>, endCursor: string|null}
-     */
-    private function fetchBranchPage(string $owner, string $repositoryName, int $perPage, ?string $after, string $search): array
-    {
         $gql = <<<'GRAPHQL'
-query ListBranches($owner: String!, $name: String!, $first: Int!, $after: String, $query: String) {
+query ListBranches($owner: String!, $name: String!, $first: Int!, $query: String) {
   repository(owner: $owner, name: $name) {
-    refs(refPrefix: "refs/heads/", first: $first, after: $after, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
+    refs(refPrefix: "refs/heads/", first: $first, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
       edges {
         node {
           name
         }
-      }
-      pageInfo {
-        endCursor
       }
     }
   }
@@ -801,7 +778,6 @@ GRAPHQL;
                 'owner' => $owner,
                 'name' => $repositoryName,
                 'first' => $perPage,
-                'after' => $after,
                 'query' => $search !== '' ? $search : null,
             ],
         ]);
@@ -810,23 +786,17 @@ GRAPHQL;
         $responseBody = $response['body'] ?? [];
 
         if ($statusCode < 200 || $statusCode >= 300 || !is_array($responseBody) || array_key_exists('errors', $responseBody)) {
-            return ['names' => [], 'endCursor' => null];
+            return [];
         }
 
         $repository = $responseBody['data']['repository'] ?? null;
         $refs = is_array($repository) ? ($repository['refs'] ?? null) : null;
 
         if (!is_array($refs)) {
-            return ['names' => [], 'endCursor' => null];
+            return [];
         }
 
-        $edges = $refs['edges'] ?? [];
-        $endCursor = $refs['pageInfo']['endCursor'] ?? null;
-
-        return [
-            'names' => array_map(fn ($edge) => $edge['node']['name'] ?? '', $edges),
-            'endCursor' => $endCursor,
-        ];
+        return array_map(fn ($edge) => $edge['node']['name'] ?? '', $refs['edges'] ?? []);
     }
 
     /**
