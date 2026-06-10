@@ -546,6 +546,12 @@ class GitHubTest extends Base
             $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, 2);
             $this->assertSame(['branch-b'], $page2);
 
+            $page1 = $adapter->listBranches(static::$owner, $repositoryName, 1, 1);
+            $this->assertSame(['branch-a'], $page1);
+
+            $page2 = $adapter->listBranches(static::$owner, $repositoryName, 1, 2);
+            $this->assertSame(['branch-b'], $page2);
+
             $all = $adapter->listBranches(static::$owner, $repositoryName, 100, 1);
             $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all);
 
