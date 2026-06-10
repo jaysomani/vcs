@@ -742,90 +742,54 @@ class GitHub extends Git
     }
 
     /**
-     * Lists branches for a given repository, optionally filtered by a search string.
+     * Lists branches for a given repository, optionally filtered by a search prefix.
+     *
+     * When $search is provided, uses GET /repos/{owner}/{repo}/git/matching-refs/heads/{prefix}
+     * for server-side prefix filtering, then slices the result for pagination.
+     * When $search is empty, uses GET /repos/{owner}/{repo}/branches with native offset pagination.
      *
      * @param  string  $owner
      * @param  string  $repositoryName
      * @param  int  $perPage Clamped to [1, 100]
      * @param  int  $page Page number (1-based)
-     * @param  string  $search Substring filter; empty returns all branches
+     * @param  string  $search Prefix filter; empty returns all branches
      * @return array<string> List of branch names
      */
     public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int $page = 1, string $search = ''): array
     {
-        $perPage = min(max($perPage, 1), 50);
-        $cursor = null;
+        $perPage = min(max($perPage, 1), 100);
 
-        if ($page > 1) {
-            $cursorGql = <<<'GRAPHQL'
-query ListBranchesCursor($owner: String!, $name: String!, $first: Int!, $query: String) {
-  repository(owner: $owner, name: $name) {
-    refs(refPrefix: "refs/heads/", first: $first, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
-      pageInfo {
-        endCursor
-        hasNextPage
-      }
-    }
-  }
-}
-GRAPHQL;
-            $cursorResponse = $this->call(self::METHOD_POST, '/graphql', ['Authorization' => "Bearer $this->accessToken"], [
-                'query' => $cursorGql,
-                'variables' => [
-                    'owner' => $owner,
-                    'name' => $repositoryName,
-                    'first' => ($page - 1) * $perPage,
-                    'query' => $search !== '' ? $search : null,
-                ],
-            ]);
+        if ($search !== '') {
+            $url = "/repos/$owner/$repositoryName/git/matching-refs/heads/" . \urlencode($search);
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"]);
 
-            $cursorRefs = ($cursorResponse['body']['data']['repository']['refs'] ?? null);
-            if (!is_array($cursorRefs) || !($cursorRefs['pageInfo']['hasNextPage'] ?? false)) {
+            $statusCode = $response['headers']['status-code'] ?? 0;
+            $responseBody = $response['body'] ?? [];
+
+            if ($statusCode < 200 || $statusCode >= 300 || !is_array($responseBody)) {
                 return [];
             }
-            $cursor = $cursorRefs['pageInfo']['endCursor'] ?? null;
+
+            $branches = array_map(fn ($ref) => str_replace('refs/heads/', '', $ref['ref'] ?? ''), $responseBody);
+            $offset = ($page - 1) * $perPage;
+
+            return array_values(array_slice($branches, $offset, $perPage));
         }
 
-        $gql = <<<'GRAPHQL'
-query ListBranches($owner: String!, $name: String!, $first: Int!, $after: String, $query: String) {
-  repository(owner: $owner, name: $name) {
-    refs(refPrefix: "refs/heads/", first: $first, after: $after, orderBy: {field: ALPHABETICAL, direction: ASC}, query: $query) {
-      edges {
-        node {
-          name
-        }
-      }
-    }
-  }
-}
-GRAPHQL;
-
-        $response = $this->call(self::METHOD_POST, '/graphql', ['Authorization' => "Bearer $this->accessToken"], [
-            'query' => $gql,
-            'variables' => [
-                'owner' => $owner,
-                'name' => $repositoryName,
-                'first' => $perPage,
-                'after' => $cursor,
-                'query' => $search !== '' ? $search : null,
-            ],
+        $url = "/repos/$owner/$repositoryName/branches";
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
+            'page' => $page,
+            'per_page' => $perPage,
         ]);
 
         $statusCode = $response['headers']['status-code'] ?? 0;
         $responseBody = $response['body'] ?? [];
 
-        if ($statusCode < 200 || $statusCode >= 300 || !is_array($responseBody) || array_key_exists('errors', $responseBody)) {
+        if ($statusCode < 200 || $statusCode >= 300 || !is_array($responseBody)) {
             return [];
         }
 
-        $repository = $responseBody['data']['repository'] ?? null;
-        $refs = is_array($repository) ? ($repository['refs'] ?? null) : null;
-
-        if (!is_array($refs)) {
-            return [];
-        }
-
-        return array_map(fn ($edge) => $edge['node']['name'] ?? '', $refs['edges'] ?? []);
+        return array_values(array_map(fn ($branch) => $branch['name'] ?? '', $responseBody));
     }
 
     /**

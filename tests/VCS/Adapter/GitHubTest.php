@@ -552,9 +552,8 @@ class GitHubTest extends Base
             $searchResults = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'branch');
             $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $searchResults);
 
-            // GitHub refs(query:) does substring matching, so 'ranch' matches 'branch-a' and 'branch-b'
-            $substringSearch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'ranch');
-            $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $substringSearch);
+            $noMatch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'xyz');
+            $this->assertEmpty($noMatch);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }
