@@ -753,7 +753,7 @@ class GitHub extends Git
      */
     public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int $page = 1, string $search = ''): array
     {
-        $perPage = min(max($perPage, 1), 100);
+        $perPage = min(max($perPage, 1), 50);
         $cursor = null;
 
         if ($page > 1) {
