@@ -761,7 +761,7 @@ class GitHub extends Git
         $perPage = min(max($perPage, 1), 100);
 
         if ($search !== '') {
-            $url = "/repos/$owner/$repositoryName/git/matching-refs/heads/" . \urlencode($search);
+            $url = "/repos/$owner/$repositoryName/git/matching-refs/heads/" . \str_replace('%2F', '/', \rawurlencode($search));
             $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], ['per_page' => 100]);
 
             $statusCode = $response['headers']['status-code'] ?? 0;
