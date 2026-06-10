@@ -745,8 +745,9 @@ class GitHub extends Git
      * Lists branches for a given repository, optionally filtered by a search prefix.
      *
      * When $search is provided, uses GET /repos/{owner}/{repo}/git/matching-refs/heads/{prefix}
-     * for server-side prefix filtering, then slices the result for pagination.
-     * When $search is empty, uses GET /repos/{owner}/{repo}/branches with native offset pagination.
+     * to perform server-side prefix filtering. Since this endpoint does not support pagination,
+     * all matching refs are fetched and paginated client-side.
+     * When $search is empty, uses GET /repos/{owner}/{repo}/branches with GitHub's native pagination.
      *
      * @param  string  $owner
      * @param  string  $repositoryName
