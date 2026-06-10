@@ -780,6 +780,8 @@ class GitHub extends Git
         $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
             'page' => $page,
             'per_page' => $perPage,
+            'sort' => 'updated',
+            'direction' => 'desc',
         ]);
 
         $statusCode = $response['headers']['status-code'] ?? 0;
