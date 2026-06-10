@@ -761,7 +761,7 @@ class GitHub extends Git
 
         if ($search !== '') {
             $url = "/repos/$owner/$repositoryName/git/matching-refs/heads/" . \urlencode($search);
-            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"]);
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], ['per_page' => 100]);
 
             $statusCode = $response['headers']['status-code'] ?? 0;
             $responseBody = $response['body'] ?? [];
