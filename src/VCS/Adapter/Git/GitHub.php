@@ -745,9 +745,8 @@ class GitHub extends Git
      * Lists branches for a given repository, optionally filtered by a search prefix.
      *
      * When $search is provided, uses GET /repos/{owner}/{repo}/git/matching-refs/heads/{prefix}
-     * to perform server-side prefix filtering. Up to 100 matching refs are fetched in one call
-     * and paginated client-side. Repositories with more than 100 branches sharing the same prefix
-     * will only return the first 100 matches.
+     * to perform server-side prefix filtering. This endpoint ignores per_page/page params and
+     * always returns all matching refs in one call; results are then paginated client-side.
      * When $search is empty, uses GET /repos/{owner}/{repo}/branches with GitHub's native pagination.
      *
      * @param  string  $owner
@@ -763,7 +762,7 @@ class GitHub extends Git
 
         if ($search !== '') {
             $url = "/repos/$owner/$repositoryName/git/matching-refs/heads/" . \str_replace('%2F', '/', \rawurlencode($search));
-            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], ['per_page' => 100]);
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"]);
 
             $statusCode = $response['headers']['status-code'] ?? 0;
             $responseBody = $response['body'] ?? [];
