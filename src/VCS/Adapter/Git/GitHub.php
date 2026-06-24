@@ -639,7 +639,7 @@ class GitHub extends Git
         $statusCode = $response['headers']['status-code'] ?? 0;
         if (!array_key_exists('token', $responseBody)) {
             $safeBody = \is_array($responseBody) ? \json_encode(\array_intersect_key($responseBody, \array_flip(['message', 'documentation_url']))) : '';
-            throw new Exception('Failed to retrieve access token from GitHub API. Status: ' . $statusCode . '. Response: ' . $safeBody);
+            throw new Exception('Failed to retrieve access token from GitHub API. Status: ' . $statusCode . '. Response: ' . $safeBody, $statusCode);
         }
         $this->accessToken = $responseBody['token'] ?? '';
     }
