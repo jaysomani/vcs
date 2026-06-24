@@ -164,7 +164,7 @@ class GitHub extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -530,7 +530,7 @@ class GitHub extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Deleting repository $repositoryName failed with status code $responseHeadersStatusCode");
+            throw new Exception("Deleting repository $repositoryName failed with status code $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
         return true;
     }
@@ -972,7 +972,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create check run: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to create check run: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -991,7 +991,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get check run $checkRunId: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to get check run $checkRunId: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -1068,7 +1068,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to update check run $checkRunId: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to update check run $checkRunId: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
