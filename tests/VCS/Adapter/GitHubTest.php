@@ -237,8 +237,12 @@ class GitHubTest extends Base
 
     public function testDeleteNonExistingRepositoryFails(): void
     {
-        $this->expectException(\Exception::class);
-        $this->vcsAdapter->deleteRepository(static::$owner, 'non-existing-repo-' . \uniqid());
+        try {
+            $this->vcsAdapter->deleteRepository(static::$owner, 'non-existing-repo-' . \uniqid());
+            $this->fail('Expected exception not thrown');
+        } catch (\Exception $e) {
+            $this->assertGreaterThanOrEqual(400, $e->getCode());
+        }
     }
 
     public function testGetRepositoryName(): void
