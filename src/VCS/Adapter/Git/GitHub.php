@@ -854,15 +854,16 @@ class GitHub extends Git
         }
 
         $responseBody = $response['body'] ?? [];
-        $responseBodyCommit = $responseBody['commit'] ?? [];
+        $commit = $responseBody[0] ?? [];
+        $responseBodyCommit = $commit['commit'] ?? [];
         $responseBodyCommitAuthor = $responseBodyCommit['author'] ?? [];
-        $responseBodyAuthor = is_array($responseBody['author'] ?? null) ? $responseBody['author'] : [];
+        $responseBodyAuthor = is_array($commit['author'] ?? null) ? $commit['author'] : [];
 
         if (
             !array_key_exists('name', $responseBodyCommitAuthor) ||
             !array_key_exists('message', $responseBodyCommit) ||
-            !array_key_exists('sha', $responseBody) ||
-            !array_key_exists('html_url', $responseBody)
+            !array_key_exists('sha', $commit) ||
+            !array_key_exists('html_url', $commit)
         ) {
             throw new Exception("Latest commit response is missing required information.");
         }
@@ -870,8 +871,8 @@ class GitHub extends Git
         return [
             'commitAuthor' => $responseBodyCommitAuthor['name'] ?? '',
             'commitMessage' => $responseBodyCommit['message'] ?? '',
-            'commitHash' => $responseBody['sha'] ?? '',
-            'commitUrl' => $responseBody['html_url'] ?? '',
+            'commitHash' => $commit['sha'] ?? '',
+            'commitUrl' => $commit['html_url'] ?? '',
             'commitAuthorAvatar' => $responseBodyAuthor['avatar_url'] ?? '',
             'commitAuthorUrl' => $responseBodyAuthor['html_url'] ?? '',
         ];
