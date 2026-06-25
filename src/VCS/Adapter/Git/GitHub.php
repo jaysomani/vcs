@@ -858,14 +858,6 @@ class GitHub extends Git
         $responseBodyCommitAuthor = $responseBodyCommit['author'] ?? [];
         $responseBodyAuthor = is_array($responseBody['author'] ?? null) ? $responseBody['author'] : [];
 
-        if (
-            !array_key_exists('message', $responseBodyCommit) ||
-            !array_key_exists('sha', $responseBody) ||
-            !array_key_exists('html_url', $responseBody)
-        ) {
-            throw new Exception("Latest commit response is missing required information.");
-        }
-
         return [
             'commitAuthor' => $responseBodyCommitAuthor['name'] ?? '',
             'commitMessage' => $responseBodyCommit['message'] ?? '',
