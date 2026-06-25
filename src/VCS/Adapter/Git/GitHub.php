@@ -852,6 +852,9 @@ class GitHub extends Git
         if ($responseHeadersStatusCode === 404) {
             throw new RepositoryNotFound("Branch not found: {$branch}");
         }
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to get latest commit: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
+        }
 
         $responseBody = $response['body'] ?? [];
         $responseBodyCommit = $responseBody['commit'] ?? [];
