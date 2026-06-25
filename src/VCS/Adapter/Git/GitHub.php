@@ -164,7 +164,7 @@ class GitHub extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -530,7 +530,7 @@ class GitHub extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Deleting repository $repositoryName failed with status code $responseHeadersStatusCode");
+            throw new Exception("Deleting repository $repositoryName failed with status code $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
         return true;
     }
@@ -639,7 +639,7 @@ class GitHub extends Git
         $statusCode = $response['headers']['status-code'] ?? 0;
         if (!array_key_exists('token', $responseBody)) {
             $safeBody = \is_array($responseBody) ? \json_encode(\array_intersect_key($responseBody, \array_flip(['message', 'documentation_url']))) : '';
-            throw new Exception('Failed to retrieve access token from GitHub API. Status: ' . $statusCode . '. Response: ' . $safeBody);
+            throw new Exception('Failed to retrieve access token from GitHub API. Status: ' . $statusCode . '. Response: ' . $safeBody, $statusCode);
         }
         $this->accessToken = $responseBody['token'] ?? '';
     }
@@ -852,20 +852,14 @@ class GitHub extends Git
         if ($responseHeadersStatusCode === 404) {
             throw new RepositoryNotFound("Branch not found: {$branch}");
         }
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to get latest commit: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
+        }
 
         $responseBody = $response['body'] ?? [];
         $responseBodyCommit = $responseBody['commit'] ?? [];
         $responseBodyCommitAuthor = $responseBodyCommit['author'] ?? [];
         $responseBodyAuthor = is_array($responseBody['author'] ?? null) ? $responseBody['author'] : [];
-
-        if (
-            !array_key_exists('name', $responseBodyCommitAuthor) ||
-            !array_key_exists('message', $responseBodyCommit) ||
-            !array_key_exists('sha', $responseBody) ||
-            !array_key_exists('html_url', $responseBody)
-        ) {
-            throw new Exception("Latest commit response is missing required information.");
-        }
 
         return [
             'commitAuthor' => $responseBodyCommitAuthor['name'] ?? '',
@@ -972,7 +966,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create check run: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to create check run: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -991,7 +985,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get check run $checkRunId: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to get check run $checkRunId: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -1068,7 +1062,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to update check run $checkRunId: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to update check run $checkRunId: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];

@@ -306,7 +306,7 @@ class Gogs extends Gitea
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -519,7 +519,7 @@ class Gogs extends Gitea
         }
 
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to list branches: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to list branches: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];

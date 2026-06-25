@@ -1198,14 +1198,22 @@ class GitLabTest extends Base
         $this->vcsAdapter->createRepository(static::$owner, $repositoryName, false);
         $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
 
-        $this->expectException(\Exception::class);
-        $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
+        try {
+            $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
+            $this->fail('Expected exception not thrown');
+        } catch (\Exception $e) {
+            $this->assertGreaterThanOrEqual(400, $e->getCode());
+        }
     }
 
     public function testDeleteNonExistingRepositoryFails(): void
     {
-        $this->expectException(\Exception::class);
-        $this->vcsAdapter->deleteRepository(static::$owner, 'non-existing-repo-' . \uniqid());
+        try {
+            $this->vcsAdapter->deleteRepository(static::$owner, 'non-existing-repo-' . \uniqid());
+            $this->fail('Expected exception not thrown');
+        } catch (\Exception $e) {
+            $this->assertGreaterThanOrEqual(400, $e->getCode());
+        }
     }
 
     public function testGetPullRequestFromBranchNoPR(): void
