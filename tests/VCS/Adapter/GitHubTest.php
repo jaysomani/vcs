@@ -201,6 +201,12 @@ class GitHubTest extends Base
 
             $all = $adapter->listBranches(static::$owner, $repositoryName, 100, 1);
             $this->assertEqualsCanonicalizing([static::$defaultBranch, 'branch-a', 'branch-b'], $all);
+
+            $searchResults = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'branch');
+            $this->assertEqualsCanonicalizing(['branch-a', 'branch-b'], $searchResults);
+
+            $noMatch = $adapter->listBranches(static::$owner, $repositoryName, 100, 1, 'xyz');
+            $this->assertEmpty($noMatch);
         } finally {
             $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
         }

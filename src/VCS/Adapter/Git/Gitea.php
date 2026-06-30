@@ -171,7 +171,7 @@ class Gitea extends Git
             $responseHeaders = $response['headers'] ?? [];
             $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
             if ($responseHeadersStatusCode >= 400) {
-                throw new Exception("Repository search failed with status code {$responseHeadersStatusCode}");
+                throw new Exception("Repository search failed with status code {$responseHeadersStatusCode}", $responseHeadersStatusCode);
             }
 
             $responseBody = $response['body'] ?? [];
@@ -326,7 +326,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -358,7 +358,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create branch {$newBranchName}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create branch {$newBranchName}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -462,7 +462,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Deleting repository {$repositoryName} failed with status code {$responseHeadersStatusCode}");
+            throw new Exception("Deleting repository {$repositoryName} failed with status code {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return true;
@@ -503,7 +503,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create pull request: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create pull request: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -547,7 +547,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create webhook: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create webhook: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return (int) ($response['body']['id'] ?? 0);
@@ -562,7 +562,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create comment: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create comment: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -594,7 +594,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to update comment: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to update comment: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -621,7 +621,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get user: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to get user: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -645,7 +645,7 @@ class Gitea extends Git
         }
 
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get repository: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to get repository: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -667,7 +667,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get pull request: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to get pull request: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -692,7 +692,7 @@ class Gitea extends Git
             $responseHeaders = $response['headers'] ?? [];
             $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
             if ($responseHeadersStatusCode >= 400) {
-                throw new Exception("Failed to get pull request files: HTTP {$responseHeadersStatusCode}");
+                throw new Exception("Failed to get pull request files: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
             }
 
             $files = $response['body'] ?? [];
@@ -716,7 +716,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to list pull requests: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to list pull requests: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -751,7 +751,7 @@ class Gitea extends Git
 
             if ($responseHeadersStatusCode >= 400) {
                 if ($currentPage === 1) {
-                    throw new Exception("Failed to list branches: HTTP {$responseHeadersStatusCode}");
+                    throw new Exception("Failed to list branches: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
                 }
                 break;
             }
@@ -834,7 +834,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Latest commit response failed with status code {$responseHeadersStatusCode}");
+            throw new Exception("Latest commit response failed with status code {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -895,7 +895,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to update commit status: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to update commit status: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
     }
 
@@ -1129,7 +1129,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create tag {$tagName}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create tag {$tagName}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -1152,7 +1152,7 @@ class Gitea extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get commit statuses: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to get commit statuses: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];

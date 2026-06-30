@@ -70,7 +70,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
-            throw new Exception("Creating organization {$orgName} failed with status code {$statusCode}");
+            throw new Exception("Creating organization {$orgName} failed with status code {$statusCode}", $statusCode);
         }
 
         return ($responseBody['id'] ?? '') . ':' . ($responseBody['path'] ?? '');
@@ -116,7 +116,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
-            throw new Exception("Creating repository {$repositoryName} failed with status code {$statusCode}");
+            throw new Exception("Creating repository {$repositoryName} failed with status code {$statusCode}", $statusCode);
         }
         $result = is_array($body) ? $body : [];
         $result['pushed_at'] = $result['last_activity_at'] ?? '';
@@ -134,7 +134,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Deleting repository {$repositoryName} failed with status code {$responseHeadersStatusCode}");
+            throw new Exception("Deleting repository {$repositoryName} failed with status code {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return true;
@@ -396,7 +396,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -416,7 +416,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create branch {$newBranchName}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create branch {$newBranchName}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -440,7 +440,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
-            throw new Exception("Failed to create merge request: HTTP {$statusCode}");
+            throw new Exception("Failed to create merge request: HTTP {$statusCode}", $statusCode);
         }
 
         return $response['body'] ?? [];
@@ -466,7 +466,7 @@ class GitLab extends Git
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
             $body = $response['body'] ?? [];
-            throw new Exception("Failed to create webhook: HTTP {$responseHeadersStatusCode} - " . json_encode($body));
+            throw new Exception("Failed to create webhook: HTTP {$responseHeadersStatusCode} - " . json_encode($body), $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -484,7 +484,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
-            throw new Exception("Failed to create comment: HTTP {$statusCode}");
+            throw new Exception("Failed to create comment: HTTP {$statusCode}", $statusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -528,7 +528,7 @@ class GitLab extends Git
 
         $responseHeaders = $response['headers'] ?? [];
         if (($responseHeaders['status-code'] ?? 0) !== 200) {
-            throw new Exception("Failed to update comment: HTTP " . ($responseHeaders['status-code'] ?? 0));
+            throw new Exception("Failed to update comment: HTTP " . ($responseHeaders['status-code'] ?? 0), $responseHeaders['status-code'] ?? 0);
         }
 
         return $commentId;
@@ -543,7 +543,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
-            throw new Exception("Failed to get user: HTTP {$statusCode}");
+            throw new Exception("Failed to get user: HTTP {$statusCode}", $statusCode);
         }
 
         $body = $response['body'] ?? [];
@@ -564,7 +564,7 @@ class GitLab extends Git
             $responseHeaders = $response['headers'] ?? [];
             $statusCode = $responseHeaders['status-code'] ?? 0;
             if ($statusCode >= 400) {
-                throw new Exception("Failed to get owner name for repository {$repositoryId}: HTTP {$statusCode}");
+                throw new Exception("Failed to get owner name for repository {$repositoryId}: HTTP {$statusCode}", $statusCode);
             }
             $responseBody = $response['body'] ?? [];
             $namespace = $responseBody['namespace'] ?? [];
@@ -576,7 +576,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
-            throw new Exception("Failed to get current user: HTTP {$statusCode}");
+            throw new Exception("Failed to get current user: HTTP {$statusCode}", $statusCode);
         }
         $responseBody = $response['body'] ?? [];
         return $responseBody['username'] ?? '';
@@ -593,7 +593,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
-            throw new Exception("Failed to get merge request: HTTP {$statusCode}");
+            throw new Exception("Failed to get merge request: HTTP {$statusCode}", $statusCode);
         }
 
         $mr = $response['body'] ?? [];
@@ -645,7 +645,7 @@ class GitLab extends Git
             $responseHeaders = $response['headers'] ?? [];
             $statusCode = $responseHeaders['status-code'] ?? 0;
             if ($statusCode >= 400) {
-                throw new Exception("Failed to get merge request files: HTTP {$statusCode}");
+                throw new Exception("Failed to get merge request files: HTTP {$statusCode}", $statusCode);
             }
 
             $files = $response['body'] ?? [];
@@ -679,7 +679,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $statusCode = $responseHeaders['status-code'] ?? 0;
         if ($statusCode >= 400) {
-            throw new Exception("Failed to list merge requests: HTTP {$statusCode}");
+            throw new Exception("Failed to list merge requests: HTTP {$statusCode}", $statusCode);
         }
 
         $body = $response['body'] ?? [];
@@ -768,7 +768,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get latest commit: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to get latest commit: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         $responseBody = $response['body'] ?? [];
@@ -826,7 +826,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to update commit status: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to update commit status: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
     }
 
@@ -971,7 +971,7 @@ class GitLab extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create tag {$tagName}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create tag {$tagName}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];

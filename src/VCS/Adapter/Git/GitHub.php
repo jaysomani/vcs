@@ -164,7 +164,7 @@ class GitHub extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -530,7 +530,7 @@ class GitHub extends Git
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Deleting repository $repositoryName failed with status code $responseHeadersStatusCode");
+            throw new Exception("Deleting repository $repositoryName failed with status code $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
         return true;
     }
@@ -636,8 +636,10 @@ class GitHub extends Git
         $this->jwtToken = $token;
         $response = $this->call(self::METHOD_POST, '/app/installations/' . $this->installationId . '/access_tokens', ['Authorization' => 'Bearer ' . $token]);
         $responseBody = $response['body'] ?? [];
+        $statusCode = $response['headers']['status-code'] ?? 0;
         if (!array_key_exists('token', $responseBody)) {
-            throw new Exception('Failed to retrieve access token from GitHub API.');
+            $safeBody = \is_array($responseBody) ? \json_encode(\array_intersect_key($responseBody, \array_flip(['message', 'documentation_url']))) : '';
+            throw new Exception('Failed to retrieve access token from GitHub API. Status: ' . $statusCode . '. Response: ' . $safeBody, $statusCode);
         }
         $this->accessToken = $responseBody['token'] ?? '';
     }
@@ -742,19 +744,42 @@ class GitHub extends Git
     }
 
     /**
-     * Lists branches for a given repository
+     * Lists branches for a given repository, optionally filtered by a search prefix.
      *
-     * @param  string  $owner Owner name of the repository
-     * @param  string  $repositoryName Name of the GitHub repository
-     * @param  int  $perPage Number of branches to fetch per page
-     * @param  int  $page Page number to start fetching from
-     * @return array<string> List of branch names as array
+     * When $search is provided, uses GET /repos/{owner}/{repo}/git/matching-refs/heads/{prefix}
+     * to perform server-side prefix filtering. This endpoint ignores per_page/page params and
+     * always returns all matching refs in one call; results are then paginated client-side.
+     * When $search is empty, uses GET /repos/{owner}/{repo}/branches with GitHub's native pagination.
+     *
+     * @param  string  $owner
+     * @param  string  $repositoryName
+     * @param  int  $perPage Clamped to [1, 100]
+     * @param  int  $page Page number (1-based)
+     * @param  string  $search Prefix filter; empty returns all branches
+     * @return array<string> List of branch names
      */
-    public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int $page = 1): array
+    public function listBranches(string $owner, string $repositoryName, int $perPage = 100, int $page = 1, string $search = ''): array
     {
-        $url = "/repos/$owner/$repositoryName/branches";
         $perPage = min(max($perPage, 1), 100);
 
+        if ($search !== '') {
+            $url = "/repos/$owner/$repositoryName/git/matching-refs/heads/" . \str_replace('%2F', '/', \rawurlencode($search));
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"]);
+
+            $statusCode = $response['headers']['status-code'] ?? 0;
+            $responseBody = $response['body'] ?? [];
+
+            if ($statusCode < 200 || $statusCode >= 300 || !is_array($responseBody)) {
+                return [];
+            }
+
+            $branches = array_map(fn ($ref) => str_replace('refs/heads/', '', $ref['ref'] ?? ''), $responseBody);
+            $offset = ($page - 1) * $perPage;
+
+            return array_values(array_slice($branches, $offset, $perPage));
+        }
+
+        $url = "/repos/$owner/$repositoryName/branches";
         $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->accessToken"], [
             'page' => $page,
             'per_page' => $perPage,
@@ -827,22 +852,14 @@ class GitHub extends Git
         if ($responseHeadersStatusCode === 404) {
             throw new RepositoryNotFound("Branch not found: {$branch}");
         }
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to get latest commit: HTTP {$responseHeadersStatusCode}", $responseHeadersStatusCode);
+        }
 
         $responseBody = $response['body'] ?? [];
         $responseBodyCommit = $responseBody['commit'] ?? [];
         $responseBodyCommitAuthor = $responseBodyCommit['author'] ?? [];
-        $responseBodyAuthor = $responseBody['author'] ?? [];
-
-        if (
-            !array_key_exists('name', $responseBodyCommitAuthor) ||
-            !array_key_exists('message', $responseBodyCommit) ||
-            !array_key_exists('sha', $responseBody) ||
-            !array_key_exists('html_url', $responseBody) ||
-            !array_key_exists('avatar_url', $responseBodyAuthor) ||
-            !array_key_exists('html_url', $responseBodyAuthor)
-        ) {
-            throw new Exception("Latest commit response is missing required information.");
-        }
+        $responseBodyAuthor = is_array($responseBody['author'] ?? null) ? $responseBody['author'] : [];
 
         return [
             'commitAuthor' => $responseBodyCommitAuthor['name'] ?? '',
@@ -953,7 +970,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to create check run: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to create check run: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -972,7 +989,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get check run $checkRunId: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to get check run $checkRunId: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
@@ -1049,7 +1066,7 @@ class GitHub extends Git
 
         $responseHeadersStatusCode = $response['headers']['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to update check run $checkRunId: HTTP $responseHeadersStatusCode");
+            throw new Exception("Failed to update check run $checkRunId: HTTP $responseHeadersStatusCode", $responseHeadersStatusCode);
         }
 
         return $response['body'] ?? [];
